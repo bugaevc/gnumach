@@ -29,5 +29,6 @@ struct bootstrap_module {
 extern void machine_exec_boot_script(void);
 
 void bootstrap_create(void);
+int boot_script_ramdisk_create(struct cmd *cmd, char **name);
 
 #endif /* _KERN_BOOTSTRAP_H_ */

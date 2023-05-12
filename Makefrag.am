@@ -319,6 +319,8 @@ libkernel_a_SOURCES += \
 	device/net_io.c \
 	device/net_io.h \
 	device/param.h \
+	device/ramdisk.c \
+	device/ramdisk.h \
 	device/subrs.c \
 	device/subrs.h \
 	device/tty.h
