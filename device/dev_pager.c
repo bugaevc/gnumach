@@ -441,7 +441,7 @@ kern_return_t	device_pager_data_request(
 	    }
 
 	    ret = vm_object_page_map(object,
-				     offset, length,
+				     offset, length, TRUE,
 				     device_map_page, (void *)ds);
 
 	    if (ret != KERN_SUCCESS) {

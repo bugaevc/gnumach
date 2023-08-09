@@ -2884,6 +2884,7 @@ vm_object_page_map(
 	vm_object_t	object,
 	vm_offset_t	offset,
 	vm_size_t	size,
+	boolean_t	private,
 	phys_addr_t	(*map_fn)(void *, vm_offset_t),
 	void *		map_fn_data)	/* private to map_fn */
 {
@@ -2901,8 +2902,18 @@ vm_object_page_map(
 	    if (addr == vm_page_fictitious_addr)
 		return KERN_NO_ACCESS;
 
-	    while ((m = vm_page_grab_fictitious()) == VM_PAGE_NULL)
-		vm_page_more_fictitious();
+	    if (private) {
+		while ((m = vm_page_grab_fictitious()) == VM_PAGE_NULL)
+		    vm_page_more_fictitious();
+		vm_page_init(m);
+		m->phys_addr = addr;
+		m->private = TRUE;
+		m->wire_count = 1;
+	    } else {
+		m = vm_page_lookup_pa(addr);
+		if (m == VM_PAGE_NULL)
+		    return KERN_NO_ACCESS;
+	    }
 
 	    vm_object_lock(object);
 	    if ((old_page = vm_page_lookup(object, offset))
@@ -2911,10 +2922,6 @@ vm_object_page_map(
 		VM_PAGE_FREE(old_page);
 	    }
 
-	    vm_page_init(m);
-	    m->phys_addr = addr;
-	    m->private = TRUE;		/* don`t free page */
-	    m->wire_count = 1;
 	    vm_page_lock_queues();
 	    vm_page_insert(m, object, offset);
 	    vm_page_unlock_queues();

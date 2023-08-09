@@ -233,9 +233,10 @@ extern void		vm_object_destroy(
 	struct ipc_port	*pager);
 
 extern kern_return_t vm_object_page_map(
-	vm_object_t,
-	vm_offset_t,
-	vm_size_t,
+	vm_object_t	object,
+	vm_offset_t	offset,
+	vm_size_t	size,
+	boolean_t	private,
 	phys_addr_t	(*)(void *, vm_offset_t),
 	void *);
 
