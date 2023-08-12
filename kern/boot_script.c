@@ -90,12 +90,40 @@ prompt_resume_task (struct cmd *cmd, const long *val)
   return boot_script_prompt_task_resume (cmd);
 }
 
+static int
+create_vm_object (struct cmd *cmd, long *val)
+{
+  vm_object_t object = NULL;
+
+  int err = boot_script_vm_object_create (cmd, &object);
+  if (err)
+    return err;
+  assert (object);
+
+  /* Convert the object to a pager port.  */
+  vm_object_lock (object);
+  vm_object_pager_create (object);
+  /* At this point, object->pager holds a receive right.  */
+  assert (object->pager);
+  assert (object->pager_created);
+  assert (!object->pager_initialized);
+  assert (!object->pager_initializing);
+  *val = (long) object->pager;
+  vm_object_unlock (object);
+
+  /* XXX: We currently leak the object reference, meaning
+     the object will never get destroyed.  */
+
+  return 0;
+}
+
 /* List of builtin symbols.  */
 static struct sym builtin_symbols[] =
 {
   { "task-create", VAL_FUNC, (long) create_task, VAL_TASK, 0 },
   { "task-resume", VAL_FUNC, (long) resume_task, VAL_NONE, 1 },
   { "prompt-task-resume", VAL_FUNC, (long) prompt_resume_task, VAL_NONE, 1 },
+  { "vm-object-create", VAL_FUNC, (long) create_vm_object, VAL_PORT, 0 },
 };
 #define NUM_BUILTIN (sizeof (builtin_symbols) / sizeof (builtin_symbols[0]))
 

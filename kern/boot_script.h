@@ -74,6 +74,7 @@ int boot_script_exec_cmd (void *hook,
 int boot_script_task_create (struct cmd *); /* task_create + task_suspend */
 int boot_script_task_resume (struct cmd *);
 int boot_script_prompt_task_resume (struct cmd *);
+int boot_script_vm_object_create (struct cmd *, vm_object_t *obj);
 int boot_script_insert_right (struct cmd *, mach_port_t, mach_port_name_t *namep);
 int boot_script_insert_task_port (struct cmd *, task_t, mach_port_name_t *namep);
 

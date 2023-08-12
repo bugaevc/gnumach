@@ -893,6 +893,35 @@ boot_script_prompt_task_resume (struct cmd *cmd)
   return boot_script_task_resume (cmd);
 }
 
+static phys_addr_t
+map_fn_vm_object_create (void *data, vm_offset_t offset)
+{
+  struct multiboot_module *mod = data;
+  return mod->mod_start + offset;
+}
+
+int
+boot_script_vm_object_create (struct cmd *cmd, vm_object_t *obj)
+{
+  vm_object_t object;
+  struct multiboot_module *mod = cmd->hook;
+  vm_size_t size = mod->mod_end - mod->mod_start;
+
+  object = vm_object_allocate(size);
+  if (!object)
+    return BOOT_SCRIPT_NOMEM;
+
+  vm_object_page_map(object, 0, size, FALSE,
+		     map_fn_vm_object_create, mod);
+
+  /* Prevent the pages from being deallocated, since we've
+     given them to the VM object.  */
+  mod->mod_start = mod->mod_end = 0;
+
+  *obj = object;
+  return 0;
+}
+
 void
 boot_script_free_task (task_t task, int aborting)
 {
