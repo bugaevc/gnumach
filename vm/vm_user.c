@@ -352,7 +352,7 @@ kern_return_t vm_map(
 		object = VM_OBJECT_NULL;
 		offset = 0;
 		copy = FALSE;
-	} else if ((object = vm_object_enter(memory_object, size, FALSE))
+	} else if ((object = vm_object_enter(memory_object, size))
 			== VM_OBJECT_NULL)
 	  {
 	    ipc_port_t real_memobj;
@@ -384,7 +384,7 @@ kern_return_t vm_map(
 
 	    offset += start;
 
-	    if ((object = vm_object_enter(real_memobj, size, FALSE))
+	    if ((object = vm_object_enter(real_memobj, size))
 		== VM_OBJECT_NULL)
 	      return KERN_INVALID_ARGUMENT;
 	  }

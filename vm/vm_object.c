@@ -119,7 +119,7 @@ void memory_object_release(
  *	that depend on the default memory manager are called
  *	"internal".  The "pager_created" field is provided to
  *	indicate whether these ports have ever been allocated.
- *	
+ *
  *	The kernel may also create virtual memory objects to
  *	hold changed pages after a copy-on-write operation.
  *	In this case, the virtual memory object (and its
@@ -290,6 +290,7 @@ void vm_object_bootstrap(void)
 
 	vm_object_template.pager_created = FALSE;
 	vm_object_template.pager_initialized = FALSE;
+	vm_object_template.pager_initializing = FALSE;
 	vm_object_template.pager_ready = FALSE;
 
 	vm_object_template.copy_strategy = MEMORY_OBJECT_COPY_NONE;
@@ -468,14 +469,16 @@ void vm_object_deallocate(
 			return;
 		}
 
-		if (object->pager_created &&
-		    !object->pager_initialized) {
+		if (object->pager_initializing) {
 
 			/*
 			 *	Have to wait for initialization.
 			 *	Put reference back and retry
 			 *	when it's initialized.
 			 */
+
+			assert(object->pager_created);
+			assert(!object->pager_initialized);
 
 			object->ref_count++;
 			vm_object_assert_wait(object,
@@ -636,14 +639,27 @@ void vm_object_terminate(
 
 	vm_object_unlock(object);
 
-	if (object->pager != IP_NULL) {
+	assert(!object->pager_initializing);
+	if (object->pager_initialized) {
+		assert(object->pager != IP_NULL);
 		/* consumes our rights for pager, pager_request, pager_name */
 		memory_object_release(object->pager,
 					     object->pager_request,
 					     object->pager_name);
-	} else if (object->pager_name != IP_NULL) {
-		/* consumes our right for pager_name */
-		ipc_port_dealloc_kernel(object->pager_name);
+	} else {
+		if (object->pager != IP_NULL) {
+			if (object->internal) {
+				/* consumes our receive right for pager */
+				ipc_port_dealloc_kernel(object->pager);
+			} else {
+				/* release our send right for pager */
+				ipc_port_release_send(object->pager);
+			}
+		}
+		if (object->pager_name != IP_NULL) {
+			/* consumes our right for name */
+			ipc_port_dealloc_kernel(object->pager_name);
+		}
 	}
 
 #if	MACH_PAGEMAP
@@ -758,7 +774,7 @@ static void vm_object_abort_activity(
 			 	p->unlock_request = VM_PROT_NONE;
 			PAGE_WAKEUP(p);
 		}
-		
+
 		p = next;
 	}
 
@@ -802,6 +818,8 @@ kern_return_t memory_object_destroy(
 
 	vm_object_cache_lock();
 	vm_object_lock(object);
+	assert(object->pager_created);
+	assert(object->pager_initialized);
 	vm_object_remove(object);
 	object->can_persist = FALSE;
 	vm_object_cache_unlock();
@@ -813,7 +831,7 @@ kern_return_t memory_object_destroy(
 
 	old_object = object->pager;
 	object->pager = IP_NULL;
-	
+
 	old_control = object->pager_request;
 	object->pager_request = PAGER_REQUEST_NULL;
 
@@ -1363,12 +1381,12 @@ static kern_return_t vm_object_copy_call(
 	}
 
 	vm_object_unlock(src_object);
-		
+
 	/*
 	 *	Initialize the rest of the paging stuff
 	 */
 
-	new_object = vm_object_enter(new_memory_object, size, FALSE);
+	new_object = vm_object_enter(new_memory_object, size);
 	assert(new_object);
 	new_object->shadow = src_object;
 	new_object->shadow_offset = src_offset;
@@ -1715,8 +1733,9 @@ void vm_object_shadow(
  *	The relationship between vm_object structures and
  *	the memory_object ports requires careful synchronization.
  *
- *	All associations are created by vm_object_enter.  All three
- *	port fields are filled in, as follows:
+ *	All associations are created by vm_object_enter,
+ *	vm_object_pager_create, and vm_object_pager_initialize.  All
+ *	three port fields are filled in, as follows:
  *		pager:	the memory_object port itself, supplied by
  *			the user requesting a mapping (or the kernel,
  *			when initializing internal objects); the
@@ -1876,6 +1895,8 @@ void vm_object_destroy(
 
 	object->can_persist = FALSE;
 
+	assert(object->pager_created);
+	assert(object->pager_initialized);
 	assert(object->pager == pager);
 
 	/*
@@ -1886,6 +1907,8 @@ void vm_object_destroy(
 	 */
 
 	object->pager = IP_NULL;
+	object->pager_created = FALSE;
+	object->pager_initialized = FALSE;
 	vm_object_remove(object);
 
 	old_request = object->pager_request;
@@ -1923,20 +1946,112 @@ void vm_object_destroy(
 }
 
 /*
+ *	Routine:	vm_object_pager_initialize
+ *	Purpose:
+ *		Ensure the object's pager is initialized.
+ *	Conditions:
+ *		The object is locked on entry and exit;
+ *		it may be unlocked within this call.
+ *		The pager must have already been created.
+ */
+void vm_object_pager_initialize(
+	vm_object_t	object)
+{
+	assert(object);
+	assert(object->pager);
+	assert(object->pager_created);
+
+	if (object->pager_initialized)
+		return;
+
+	if (object->pager_initializing) {
+		/*
+		 *	Someone else got to it first...
+		 *	wait for them to finish initializing.
+		 */
+
+		while (!object->pager_initialized) {
+			vm_object_wait( object,
+					VM_OBJECT_EVENT_PAGER_READY,
+					FALSE);
+			vm_object_lock(object);
+		}
+		assert(!object->pager_initializing);
+		return;
+	}
+
+	object->pager_initializing = TRUE;
+	/* XXX: Why can't we hold the lock over the initialization? */
+	vm_object_unlock(object);
+
+	/*
+	 *	Allocate the request port.
+	 */
+
+	assert(object->pager_request == IP_NULL);
+	object->pager_request = ipc_port_alloc_kernel();
+	if (object->pager_request == IP_NULL)
+		panic("vm_object_pager_initialize: pager request alloc");
+	ipc_kobject_set(object->pager_request,
+			(ipc_kobject_t) object,
+			IKOT_PAGING_REQUEST);
+
+	/*
+	 *	Let the pager know we're using it.
+	 */
+
+	if (object->internal) {
+		assert(object->temporary);
+
+		/* acquire a naked send right for the DMM */
+		ipc_port_t DMM = memory_manager_default_reference();
+
+		/* default-pager objects are ready immediately */
+		object->pager_ready = TRUE;
+
+		/*
+		 *	We hold a naked receive right to the pager,
+		 *	and are about to send it to the DMM.  Make
+		 *	ourselves a naked send right instead.
+		 */
+		(void) ipc_port_make_send(object->pager);
+
+		/* consumes the naked send right for DMM */
+		(void) memory_object_create(DMM,
+			object->pager,
+			object->size,
+			object->pager_request,
+			object->pager_name,
+			PAGE_SIZE);
+	} else {
+		/* user pager objects are not ready until marked so */
+		object->pager_ready = FALSE;
+
+		(void) memory_object_init(object->pager,
+			object->pager_request,
+			object->pager_name,
+			PAGE_SIZE);
+	}
+
+	vm_object_lock(object);
+	object->pager_initialized = TRUE;
+	object->pager_initializing = FALSE;
+	vm_object_wakeup(object, VM_OBJECT_EVENT_INITIALIZED);
+}
+
+/*
  *	Routine:	vm_object_enter
  *	Purpose:
  *		Find a VM object corresponding to the given
- *		pager; if no such object exists, create one,
- *		and initialize the pager.
+ *		pager; if no such object exists, create one.
  */
 vm_object_t vm_object_enter(
 	ipc_port_t	pager,
-	vm_size_t	size,
-	boolean_t	internal)
+	vm_size_t	size)
 {
 	vm_object_t	object;
 	vm_object_t	new_object;
-	boolean_t	must_init;
+	boolean_t	did_create;
 	ipc_kobject_type_t po;
 
 restart:
@@ -1944,7 +2059,7 @@ restart:
 		return vm_object_allocate(size);
 
 	new_object = VM_OBJECT_NULL;
-	must_init = FALSE;
+	did_create = FALSE;
 
 	/*
 	 *	Look for an object associated with this port.
@@ -2001,12 +2116,9 @@ restart:
 					(ipc_kobject_t) new_object,
 					IKOT_PAGER);
 			new_object = VM_OBJECT_NULL;
-			must_init = TRUE;
+			did_create = TRUE;
 		}
 	}
-
-	if (internal)
-		must_init = TRUE;
 
 	/*
 	 *	It's only good if it's a VM object!
@@ -2015,7 +2127,7 @@ restart:
 	object = (po == IKOT_PAGER) ? (vm_object_t) pager->ip_kobject
 				    : VM_OBJECT_NULL;
 
-	if ((object != VM_OBJECT_NULL) && !must_init) {
+	if ((object != VM_OBJECT_NULL) && !did_create) {
 		vm_object_lock(object);
 		if (object->ref_count == 0)
 			vm_object_cache_remove(object);
@@ -2024,8 +2136,7 @@ restart:
 
 		vm_stat.hits++;
 	}
-	assert((object == VM_OBJECT_NULL) || (object->ref_count > 0) ||
-		((object->paging_in_progress != 0) && internal));
+	assert((object == VM_OBJECT_NULL) || (object->ref_count > 0));
 
 	vm_stat.lookups++;
 
@@ -2042,7 +2153,18 @@ restart:
 	if (object == VM_OBJECT_NULL)
 		return(object);
 
-	if (must_init) {
+	if (did_create) {
+		/*
+		 *	We did not find an existing object for the given
+		 *	pager port, and ended up creating a new one.
+		 *	Internal objects are never created this way, so
+		 *	initialize the new object as external and
+		 *	non-temporary.
+		 */
+
+		object->internal = FALSE;
+		object->temporary = FALSE;
+
 		/*
 		 *	Copy the naked send right we were given.
 		 */
@@ -2055,80 +2177,16 @@ restart:
 		object->pager = pager;
 
 		/*
-		 *	Allocate request port.
+		 *	Now initialize the pager.  If we didn't do this
+		 *	here, the pager would get initialized lazily on
+		 *	the first page fault; but it seems beneficial to
+		 *	start the initialization sooner.
 		 */
 
-		object->pager_request = ipc_port_alloc_kernel();
-		if (object->pager_request == IP_NULL)
-			panic("vm_object_enter: pager request alloc");
-
-		ipc_kobject_set(object->pager_request,
-				(ipc_kobject_t) object,
-				IKOT_PAGING_REQUEST);
-
-		/*
-		 *	Let the pager know we're using it.
-		 */
-
-		if (internal) {
-			/* acquire a naked send right for the DMM */
-			ipc_port_t DMM = memory_manager_default_reference();
-
-			/* mark the object internal */
-			object->internal = TRUE;
-			assert(object->temporary);
-
-			/* default-pager objects are ready immediately */
-			object->pager_ready = TRUE;
-
-			/* consumes the naked send right for DMM */
-			(void) memory_object_create(DMM,
-				pager,
-				object->size,
-				object->pager_request,
-				object->pager_name,
-				PAGE_SIZE);
-		} else {
-			/* the object is external and not temporary */
-			object->internal = FALSE;
-			object->temporary = FALSE;
-
-			assert(object->resident_page_count == 0);
-			vm_object_external_count++;
-
-			/* user pager objects are not ready until marked so */
-			object->pager_ready = FALSE;
-
-			(void) memory_object_init(pager,
-				object->pager_request,
-				object->pager_name,
-				PAGE_SIZE);
-
-		}
-
 		vm_object_lock(object);
-		object->pager_initialized = TRUE;
-
-		vm_object_wakeup(object, VM_OBJECT_EVENT_INITIALIZED);
-	} else {
-		vm_object_lock(object);
+		vm_object_pager_initialize(object);
+		vm_object_unlock(object);
 	}
-	/*
-	 *	[At this point, the object must be locked]
-	 */
-
-	/*
-	 *	Wait for the work above to be done by the first
-	 *	thread to map this object.
-	 */
-
-	while (!object->pager_initialized) {
-		vm_object_wait(	object,
-				VM_OBJECT_EVENT_INITIALIZED,
-				FALSE);
-		vm_object_lock(object);
-	}
-	vm_object_unlock(object);
 
 	return object;
 }
@@ -2140,46 +2198,14 @@ restart:
  *	In/out conditions:
  *		The object is locked on entry and exit;
  *		it may be unlocked within this call.
- *	Limitations:
- *		Only one thread may be performing a
- *		vm_object_pager_create on an object at
- *		a time.  Presumably, only the pageout
- *		daemon will be using this routine.
  */
 void vm_object_pager_create(
 	vm_object_t	object)
 {
 	ipc_port_t	pager;
 
-	if (object->pager_created) {
-		/*
-		 *	Someone else got to it first...
-		 *	wait for them to finish initializing
-		 */
-
-		while (!object->pager_initialized) {
-			vm_object_wait(	object,
-					VM_OBJECT_EVENT_PAGER_READY,
-					FALSE);
-			vm_object_lock(object);
-		}
+	if (object->pager_created)
 		return;
-	}
-
-	/*
-	 *	Indicate that a memory object has been assigned
-	 *	before dropping the lock, to prevent a race.
-	 */
-
-	object->pager_created = TRUE;
-		
-	/*
-	 *	Prevent collapse or termination by
-	 *	holding a paging reference
-	 */
-
-	vm_object_paging_begin(object);
-	vm_object_unlock(object);
 
 #if	MACH_PAGEMAP
 	object->existence_info = vm_external_create(
@@ -2193,12 +2219,6 @@ void vm_object_pager_create(
 	 *	Create the pager, and associate with it
 	 *	this object.
 	 *
-	 *	Note that we only make the port association
-	 *	so that vm_object_enter can properly look up
-	 *	the object to complete the initialization...
-	 *	we do not expect any user to ever map this
-	 *	object.
-	 *
 	 *	Since the kernel has the only rights to the
 	 *	port, it's safe to install the association
 	 *	without holding the cache lock.
@@ -2208,28 +2228,9 @@ void vm_object_pager_create(
 	if (pager == IP_NULL)
 		panic("vm_object_pager_create: allocate pager port");
 
-	(void) ipc_port_make_send(pager);
+	object->pager = pager;
+	object->pager_created = TRUE;
 	ipc_kobject_set(pager, (ipc_kobject_t) object, IKOT_PAGER);
-
-	/*
-	 *	Initialize the rest of the paging stuff
-	 */
-
-	if (vm_object_enter(pager, object->size, TRUE) != object)
-		panic("vm_object_pager_create: mismatch");
-
-	/*
-	 *	Drop the naked send right taken above.
-	 */
-
-	ipc_port_release_send(pager);
-
-	/*
-	 *	Release the paging reference
-	 */
-
-	vm_object_lock(object);
-	vm_object_paging_end(object);
 }
 
 /*
@@ -2467,6 +2468,7 @@ void vm_object_collapse(
 						(ipc_kobject_t) object,
 						IKOT_PAGER);
 			object->pager_initialized = backing_object->pager_initialized;
+			object->pager_initializing = backing_object->pager_initializing;
 			object->pager_ready = backing_object->pager_ready;
 			object->pager_created = backing_object->pager_created;
 

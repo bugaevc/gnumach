@@ -4934,7 +4934,21 @@ vm_region_create_proxy (task_t task, vm_address_t address,
   /* Create a pager in case this is an internal object that does
      not yet have one. */
   vm_object_pager_create(object);
-  pager = ipc_port_copy_send(object->pager);
+  /* If the pager is being initialized, what until that is done */
+  if (object->pager_initializing) {
+    while (!object->pager_initialized) {
+      vm_object_wait(object, VM_OBJECT_EVENT_PAGER_READY, FALSE);
+      vm_object_lock(object);
+    }
+    assert(!object->pager_initializing);
+  }
+  if (object->pager_initialized || !object->internal) {
+    /* object->pager is a send right */
+    pager = ipc_port_copy_send(object->pager);
+  } else {
+    /* object->pager is a receive right */
+    pager = ipc_port_make_send(object->pager);
+  }
   vm_object_unlock(object);
 
   rpc_start = (address - entry->vme_start) + entry->offset;

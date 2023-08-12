@@ -238,6 +238,8 @@ mach_vm_object_info(
 		state |= VOI_STATE_PAGER_CREATED;
 	if (object->pager_initialized)
 		state |= VOI_STATE_PAGER_INITIALIZED;
+	if (object->pager_initializing)
+		state |= VOI_STATE_PAGER_INITIALIZING;
 	if (object->pager_ready)
 		state |= VOI_STATE_PAGER_READY;
 	if (object->can_persist)

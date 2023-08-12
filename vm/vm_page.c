@@ -1209,6 +1209,7 @@ out:
 
     if (!object->pager_initialized) {
         vm_object_pager_create(object);
+        vm_object_pager_initialize(object);
     }
 
     if (!object->pager_initialized) {

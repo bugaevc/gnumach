@@ -502,6 +502,7 @@ vm_fault_return_t vm_fault_page(
 					kern_return_t	rc;
 
 					if (!object->pager_ready) {
+						vm_object_pager_initialize(object);
 						vm_object_assert_wait(object,
 							VM_OBJECT_EVENT_PAGER_READY,
 							interruptible);
@@ -592,6 +593,7 @@ vm_fault_return_t vm_fault_page(
 			 *	cannot make requests.
 			 */
 			if (!object->pager_ready) {
+				vm_object_pager_initialize(object);
 				vm_object_assert_wait(object,
 					VM_OBJECT_EVENT_PAGER_READY,
 					interruptible);
@@ -2075,6 +2077,7 @@ vm_fault_return_t vm_fault_page_overwrite(
 				 */
 
 				if (!dst_object->pager_ready) {
+					vm_object_pager_initialize(dst_object);
 					vm_object_assert_wait(dst_object,
 						VM_OBJECT_EVENT_PAGER_READY,
 						interruptible);

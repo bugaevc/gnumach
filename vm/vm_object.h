@@ -122,6 +122,7 @@ struct vm_object {
 						 */
 	/* boolean_t */		pager_created:1,/* Has pager ever been created? */
 	/* boolean_t */		pager_initialized:1,/* Are fields ready to use? */
+	/* boolean_t */		pager_initializing:1,
 	/* boolean_t */		pager_ready:1,	/* Will manager take requests? */
 
 	/* boolean_t */		can_persist:1,	/* The kernel may keep the data
@@ -225,8 +226,9 @@ extern kern_return_t	vm_object_copy_slowly(
 
 extern vm_object_t	vm_object_enter(
 	struct ipc_port	*pager,
-	vm_size_t	size,
-	boolean_t	internal);
+	vm_size_t	size);
+extern void		vm_object_pager_initialize(
+	vm_object_t	object);
 extern void		vm_object_pager_create(
 	vm_object_t	object);
 extern void		vm_object_destroy(
