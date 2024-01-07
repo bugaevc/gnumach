@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Free Software Foundation.
+ * Copyright (c) 2024 Free Software Foundation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef	_MACH_AARCH64_VM_PARAM_H_
-#define _MACH_AARCH64_VM_PARAM_H_
+#ifndef _AARCH64_TASK_
+#define _AARCH64_TASK_
 
-#include <mach/machine/vm_types.h>
+#include <kern/kern_types.h>
 
-#define BYTE_SIZE	8	/* byte size in bits */
+/* The machine specific data of a task.  */
+struct machine_task
+{
+};
+typedef struct machine_task machine_task_t;
 
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x800000000000ULL)
 
-#define PAGE_SHIFT		12
-
-#endif	/* _MACH_AARCH64_VM_PARAM_H_ */
+#endif /* _AARCH64_TASK_ */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Free Software Foundation.
+ * Copyright (c) 2024 Free Software Foundation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef	_MACH_AARCH64_VM_PARAM_H_
-#define _MACH_AARCH64_VM_PARAM_H_
+#ifndef _AARCH64_LOCORE_
+#define _AARCH64_LOCORE_
 
-#include <mach/machine/vm_types.h>
+#include <mach/mach_types.h>
 
-#define BYTE_SIZE	8	/* byte size in bits */
+int copyin (const void *userbuf, void *kernelbuf, size_t cn);
+int copyinmsg (const void *userbuf, void *kernelbuf, size_t cn, size_t kn);
+int copyout (const void *kernelbuf, void *userbuf, size_t cn);
+int copyoutmsg (const void *kernelbuf, void *userbuf, size_t cn);
 
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x800000000000ULL)
-
-#define PAGE_SHIFT		12
-
-#endif	/* _MACH_AARCH64_VM_PARAM_H_ */
+#endif /* _AARCH64_LOCORE_ */

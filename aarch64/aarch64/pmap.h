@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Free Software Foundation.
+ * Copyright (c) 2024 Free Software Foundation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,26 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef	_MACH_AARCH64_VM_PARAM_H_
-#define _MACH_AARCH64_VM_PARAM_H_
+#ifndef _AARCH64_PMAP_
+#define _AARCH64_PMAP_
 
-#include <mach/machine/vm_types.h>
+#include <kern/lock.h>
+#include <mach/machine/vm_param.h>
+#include <mach/vm_statistics.h>
+#include <mach/kern_return.h>
 
-#define BYTE_SIZE	8	/* byte size in bits */
+struct pmap {
+  //TODO registers
+  decl_simple_lock_data(,lock)	/* lock on map */
+  struct pmap_statistics stats;	/* map statistics */
+};
 
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x800000000000ULL)
+typedef struct pmap *pmap_t;
 
-#define PAGE_SHIFT		12
+#define pmap_attribute(pmap,addr,size,attr,value)   0  // FIXME
+#define PMAP_NULL ((pmap_t) 0)
 
-#endif	/* _MACH_AARCH64_VM_PARAM_H_ */
+extern vm_offset_t kernel_virtual_start;
+extern vm_offset_t kernel_virtual_end;
+
+#endif /* _AARCH64_PMAP_ */

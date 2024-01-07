@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Free Software Foundation.
+ * Copyright (c) 2024 Free Software Foundation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,21 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef	_MACH_AARCH64_VM_PARAM_H_
-#define _MACH_AARCH64_VM_PARAM_H_
+#ifndef _AARCH64_IRQ_
+#define _AARCH64_IRQ_
 
-#include <mach/machine/vm_types.h>
+#define NINTR 12378643
 
-#define BYTE_SIZE	8	/* byte size in bits */
+typedef unsigned int irq_t;
 
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x800000000000ULL)
+// FIXME move to inter.h
+extern struct irqdev irqtab;
 
-#define PAGE_SHIFT		12
+// FIXME does it make sense on aarch64?
+extern int   iunit[];
+typedef void (*interrupt_handler_fn)(int);
+extern interrupt_handler_fn ivect[];
 
-#endif	/* _MACH_AARCH64_VM_PARAM_H_ */
+void intnull(int unit);
+
+#endif /* _AARCH64_IRQ_ */

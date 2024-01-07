@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Free Software Foundation.
+ * Copyright (c) 2024 Free Software Foundation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef	_MACH_AARCH64_VM_PARAM_H_
-#define _MACH_AARCH64_VM_PARAM_H_
+#ifndef _AARCH64_SPL_
+#define _AARCH64_SPL_
 
-#include <mach/machine/vm_types.h>
+// TODO not sure what's needed here
+#define SPL7 7
+#define SPLHI 7
+extern int spl_init;
+typedef int spl_t;
 
-#define BYTE_SIZE	8	/* byte size in bits */
-
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x800000000000ULL)
-
-#define PAGE_SHIFT		12
-
-#endif	/* _MACH_AARCH64_VM_PARAM_H_ */
+#endif /* _AARCH64_SPL_ */

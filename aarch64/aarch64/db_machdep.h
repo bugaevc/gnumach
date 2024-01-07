@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Free Software Foundation.
+ * Copyright (c) 2024 Free Software Foundation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef	_MACH_AARCH64_VM_PARAM_H_
-#define _MACH_AARCH64_VM_PARAM_H_
+#ifndef _AARCH64_DB_MACHDEP_H_
+#define _AARCH64_DB_MACHDEP_H_
 
-#include <mach/machine/vm_types.h>
+typedef vm_offset_t     db_addr_t;      /* address - unsigned */
+typedef long            db_expr_t;      /* expression - signed */
 
-#define BYTE_SIZE	8	/* byte size in bits */
-
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x800000000000ULL)
-
-#define PAGE_SHIFT		12
-
-#endif	/* _MACH_AARCH64_VM_PARAM_H_ */
+#endif /* _AARCH64_DB_MACHDEP_H_ */

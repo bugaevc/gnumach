@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Free Software Foundation.
+ * Copyright (c) 2024 Free Software Foundation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,19 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef	_MACH_AARCH64_VM_PARAM_H_
-#define _MACH_AARCH64_VM_PARAM_H_
+#include <device/cons.h>
+#include <kern/printf.h>
 
-#include <mach/machine/vm_types.h>
+void putc(char c)
+{
+  volatile char *out = (char*)0x09000000;
+  *out = c;
+}
 
-#define BYTE_SIZE	8	/* byte size in bits */
-
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x800000000000ULL)
-
-#define PAGE_SHIFT		12
-
-#endif	/* _MACH_AARCH64_VM_PARAM_H_ */
+void c_boot_entry(void)
+{
+  romputc = putc;
+  printf("hola hola hola\n");
+  while (1)
+    ;
+}
