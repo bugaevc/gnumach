@@ -26,4 +26,6 @@ int copyinmsg (const void *userbuf, void *kernelbuf, size_t cn, size_t kn);
 int copyout (const void *kernelbuf, void *userbuf, size_t cn);
 int copyoutmsg (const void *kernelbuf, void *userbuf, size_t cn);
 
+extern int call_continuation (continuation_t continuation);
+
 #endif /* _AARCH64_LOCORE_ */

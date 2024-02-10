@@ -21,11 +21,35 @@
 
 #include <kern/kern_types.h>
 
+struct aarch64_pac_keys
+{
+  /* FIXME: are PAC keys even 64-bit? */
+  uint64_t ia;
+  uint64_t ib;
+  uint64_t da;
+  uint64_t db;
+};
+
 /* The machine specific data of a task.  */
 struct machine_task
 {
+  struct aarch64_pac_keys apk;
 };
 typedef struct machine_task machine_task_t;
 
+/* Initialize the machine task module.  The function is called once at
+   start up by task_init in kern/task.c.  */
+void machine_task_module_init (void);
+
+/* Initialize the machine specific part of task TASK.  */
+void machine_task_init (task_t);
+
+/* Destroy the machine specific part of task TASK and release all
+   associated resources.  */
+void machine_task_terminate (task_t);
+
+/* Try to release as much memory from the machine specific data in
+   task TASK. */
+void machine_task_collect (task_t);
 
 #endif /* _AARCH64_TASK_ */

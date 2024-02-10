@@ -28,12 +28,16 @@ libkernel_a_SOURCES += \
         aarch64/aarch64/boot.S \
         aarch64/aarch64/cpu_number.h \
 	aarch64/aarch64/locore.h \
+	aarch64/aarch64/pcb.c \
 	aarch64/aarch64/percpu.h \
 	aarch64/aarch64/pmap.h \
+	aarch64/aarch64/pmap.c \
 	aarch64/aarch64/setjmp.h \
 	aarch64/aarch64/spl.h \
+	aarch64/aarch64/task.c \
 	aarch64/aarch64/task.h \
 	aarch64/aarch64/thread.h \
+	aarch64/aarch64/trap.c \
 	aarch64/aarch64/vm_param.h \
 	aarch64/aarch64/model_dep.c \
 	aarch64/aarch64/undef.c

@@ -51,6 +51,6 @@ extern void machine_relax (void);
 /*
  * C boot entrypoint - called by boot_entry in boothdr.S.
  */
-extern void c_boot_entry(vm_offset_t bi);
+extern void c_boot_entry(void);
 
 #endif /* _AARCH64_MODEL_DEP_H_ */

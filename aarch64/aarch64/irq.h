@@ -33,4 +33,9 @@ extern interrupt_handler_fn ivect[];
 
 void intnull(int unit);
 
+void __enable_irq (irq_t irq);
+void __disable_irq (irq_t irq);
+
+extern void unmask_irq (unsigned int irq_nr);
+
 #endif /* _AARCH64_IRQ_ */

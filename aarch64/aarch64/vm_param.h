@@ -44,4 +44,9 @@
 
 #define VM_PAGE_MAX_SEGS 4
 
+#define phystokv(a)	((vm_offset_t)(a) + VM_MIN_KERNEL_ADDRESS)
+#define kvtophys(a)	((vm_offset_t)(a) - VM_MIN_KERNEL_ADDRESS)
+
+#define VM_KERNEL_MAP_SIZE (512 * 1024 * 1024)
+
 #endif /* _AARCH64_VM_PARAM_ */

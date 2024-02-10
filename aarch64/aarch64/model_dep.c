@@ -16,8 +16,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "aarch64/model_dep.h"
 #include <device/cons.h>
+#include <mach/machine.h>
 #include <kern/printf.h>
+#include <kern/startup.h>
+
+char *kernel_cmdline;
 
 void putc(char c)
 {
@@ -25,10 +30,38 @@ void putc(char c)
   *out = c;
 }
 
+static vm_offset_t heap_start = 0x40000000;
+vm_offset_t pmap_grab_page(void)
+{
+  vm_offset_t res = heap_start;
+  heap_start += PAGE_SIZE;
+  return res;
+}
+
+/*
+ * Find devices.  The system is alive.
+ */
+void machine_init(void)
+{
+}
+
 void c_boot_entry(void)
 {
   romputc = putc;
-  printf("hola hola hola\n");
-  while (1)
-    ;
+
+  kernel_cmdline = "";
+
+  /* Before we do anything else, print the hello message.  */
+  extern const char version[];
+  printf("%s\n", version);
+
+  /* FIXME This is specific to -machine virt -m 1G.  */
+  vm_page_load(VM_PAGE_SEG_DMA, 0x40000000, 0x80000000);
+  pmap_bootstrap();
+  vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, 0x80000000);
+
+  machine_slot[0].is_cpu = TRUE;
+
+  setup_main();
+  __builtin_unreachable();
 }

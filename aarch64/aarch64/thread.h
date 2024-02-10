@@ -21,4 +21,8 @@
 
 #include <machine/pcb.h>
 
+typedef struct pcb {
+    struct aarch64_thread_state ats;
+} *pcb_t;
+
 #endif /* _AARCH64_THREAD_ */

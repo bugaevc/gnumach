@@ -79,6 +79,7 @@ typedef	vm_offset_t *	vm_offset_array_t;
  */
 typedef unsigned long phys_addr_t;
 typedef unsigned long rpc_phys_addr_t;
+typedef rpc_phys_addr_t *rpc_phys_addr_array_t;
 
 /*
  * A vm_size_t is the proper type for e.g.
@@ -113,6 +114,9 @@ typedef long_integer_t rpc_long_integer_t;
 
 typedef	rpc_vm_size_t *	rpc_vm_size_array_t;
 typedef	rpc_vm_offset_t *	rpc_vm_offset_array_t;
+
+typedef rpc_vm_size_t *	rpc_vm_size_array_t;
+typedef rpc_vm_offset_t *	rpc_vm_offset_array_t;
 
 #endif	/* __ASSEMBLER__ */
 

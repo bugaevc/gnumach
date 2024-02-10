@@ -20,5 +20,14 @@
 #define _AARCH64_IPL_H_
 
 // TODO needed on aarch64?
+#define SPL0 0
+#define SPL1 1
+#define SPL2 2
+#define SPL3 3
+#define SPL4 4
+#define SPL5 5
+#define SPL6 6
+#define SPL7 7
+
 
 #endif /* _AARCH64_IPL_H_ */

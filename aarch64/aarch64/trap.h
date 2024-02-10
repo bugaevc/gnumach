@@ -19,4 +19,8 @@
 #ifndef _AARCH64_TRAP_H_
 #define _AARCH64_TRAP_H_
 
+#include <kern/kern_types.h>
+
+unsigned int interrupted_pc(thread_t);
+
 #endif /* _AARCH64_TRAP_H_ */
