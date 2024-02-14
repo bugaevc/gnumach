@@ -1,0 +1,5 @@
+#include "aarch64/thread.h"
+#include <kern/thread.h>
+
+offset	thread			th	kernel_stack
+expr	&STACK_AKS(0)->k_regs				KSS_REGS

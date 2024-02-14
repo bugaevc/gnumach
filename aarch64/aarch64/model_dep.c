@@ -23,19 +23,33 @@
 #include <kern/startup.h>
 
 char *kernel_cmdline;
+char /*struct start_info*/ boot_info;
+char irqtab;
+char iunit;
+char ivect;
+
+int spl_init;
+
+static void nommu_putc(char c)
+{
+	volatile char *out = (char*)0x09000000;
+	*out = c;
+}
 
 void putc(char c)
 {
-  volatile char *out = (char*)0x09000000;
-  *out = c;
+ 	volatile char *out = (char*)phystokv(0x09000000);
+	*out = c;
 }
 
-static vm_offset_t heap_start = 0x40000000;
+static vm_offset_t heap_start = 0x50000000;
 vm_offset_t pmap_grab_page(void)
 {
-  vm_offset_t res = heap_start;
-  heap_start += PAGE_SIZE;
-  return res;
+	vm_offset_t res = heap_start;
+
+	heap_start += PAGE_SIZE;
+
+	return res;
 }
 
 /*
@@ -43,25 +57,35 @@ vm_offset_t pmap_grab_page(void)
  */
 void machine_init(void)
 {
+	spl_init = TRUE;
 }
 
-void c_boot_entry(void)
+void __attribute__((noreturn)) c_boot_entry(void)
 {
-  romputc = putc;
+	const char *c;
+	extern const char version[];
 
-  kernel_cmdline = "";
+	/*
+	 *	Before we do anything else, print the hello message.
+	 */
+	for (c = version; *c; c++)
+		nommu_putc(*c);
+	nommu_putc('\n');
 
-  /* Before we do anything else, print the hello message.  */
-  extern const char version[];
-  printf("%s\n", version);
+	/* FIXME This is specific to -machine virt -m 1G.  */
+	vm_page_load(VM_PAGE_SEG_DMA, 0x40000000, 0x80000000);
+	pmap_bootstrap();
+	/* Now running with MMU from highmem, re-load things.  */
+	asm volatile("" ::: "memory");
+	pmap_bootstrap_misc();
+	vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, 0x80000000);
 
-  /* FIXME This is specific to -machine virt -m 1G.  */
-  vm_page_load(VM_PAGE_SEG_DMA, 0x40000000, 0x80000000);
-  pmap_bootstrap();
-  vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, 0x80000000);
+	romputc = putc;
 
-  machine_slot[0].is_cpu = TRUE;
+	machine_slot[0].is_cpu = TRUE;
 
-  setup_main();
-  __builtin_unreachable();
+	kernel_cmdline = "";
+
+	setup_main();
+	__builtin_unreachable();
 }

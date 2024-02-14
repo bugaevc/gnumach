@@ -1,18 +1,27 @@
 #include "aarch64/pmap.h"
 #include "aarch64/vm_param.h"
 #include <vm/pmap.h>
+#include <vm/vm_page.h>
+#include <kern/slab.h>
+#include <kern/printf.h>
+#include <string.h>
+
+static boolean_t	pmap_debug = FALSE;
+static boolean_t	pmap_initialized = FALSE;
 
 static struct pmap	kernel_pmap_store;
 pmap_t			kernel_pmap;
 static pt_entry_t	*ttbr1_l0_base;
+
+static struct kmem_cache table_cache;
 
 /*
  *	Range of kernel virtual addresses available for kernel memory mapping.
  *	Does not include the virtual addresses used to map physical memory 1-1.
  *	Initialized by pmap_bootstrap.
  */
-vm_offset_t kernel_virtual_start;
-vm_offset_t kernel_virtual_end;
+vm_offset_t	kernel_virtual_start;
+vm_offset_t	kernel_virtual_end;
 
 /*
  * Two slots for temporary physical page mapping, to allow for
@@ -20,6 +29,11 @@ vm_offset_t kernel_virtual_end;
  */
 // static pmap_mapwindow_t mapwindows[PMAP_NMAPWINDOWS * NCPUS];
 #define MAPWINDOW_SIZE (PMAP_NMAPWINDOWS * NCPUS * PAGE_SIZE)
+
+static inline void cache_flush(void)
+{
+	asm volatile("dsb st\n\tisb sy" ::: "memory");
+}
 
 /*
  *	Bootstrap the system enough to run with virtual memory.
@@ -29,16 +43,73 @@ vm_offset_t kernel_virtual_end;
  */
 void pmap_bootstrap(void)
 {
-	uint64_t sctrl;
-	pt_entry_t *kernel_l1_base, *kernel_l2_base, *kernel_l3_base;
+	uintptr_t	scratch1, scratch2;
+	pt_entry_t	*phys_ttbr1_l0_base;
+	pt_entry_t	*phys_ttbr0_l0_base;
+	pt_entry_t	*ttbr0_l0_base;
 
-	kernel_pmap = &kernel_pmap_store;
-#if NCPUS > 1
-	lock_init(&pmap_system_lock, FALSE);
-#endif
-	simple_lock_init(&kernel_pmap->lock);
-	kernel_pmap->ref_count = 1;
+	phys_ttbr0_l0_base = (pt_entry_t*)pmap_grab_page();
+	ttbr0_l0_base = (pt_entry_t*)phystokv(phys_ttbr0_l0_base);
 
+	phys_ttbr1_l0_base = (pt_entry_t*)pmap_grab_page();
+	ttbr1_l0_base = (pt_entry_t*)phystokv(phys_ttbr1_l0_base);
+
+	memset(phys_ttbr0_l0_base, 0, PAGE_SIZE);
+	/* Temporary identity map.  */
+	phys_ttbr0_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
+
+	/* This would need to be load slide rather than 0 for PIC.  */
+	memset(phys_ttbr1_l0_base, 0, PAGE_SIZE);
+	phys_ttbr1_l0_base[0] = 0x0 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr1_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
+
+	/* Attempt to enable the MMU.  */
+	asm volatile(
+		/* Load special register values.  */
+		"msr mair_el1, %[mair]\n\t"
+		"msr ttbr0_el1, %[ttbr0]\n\t"
+		"msr ttbr1_el1, %[ttbr1]\n\t"
+		"msr tcr_el1, %[tcr]\n\t"
+		"isb sy\n\t"
+		/* Enable the MMU bit in sctlr_el1.  */
+		"mrs %[scratch1], sctlr_el1\n\t"
+		"orr %[scratch1], %[scratch1], #1\n\t"
+		"msr sctlr_el1, %[scratch1]\n\t"
+		"dsb st\n\t"
+		"isb sy\n\t"
+		/* Adjust sp, x29 to high memory.  */
+		"mov %[scratch1], #%[min_addr]\n\t"
+		"add sp, sp, %[scratch1]\n\t"
+		"add x29, x29, %[scratch1]\n\t"
+		/* Jump to high memory.  */
+		"adr %[scratch2], .here\n\t"
+		"add %[scratch2], %[scratch2], %[scratch1]\n\t"
+		"br %[scratch2]\n"
+		".here:\n\t"
+		/* Now adjust the saved x29 / x30.  */
+		"ldp %[scratch2], x30, [x29]\n\t"
+		"add %[scratch2], %[scratch2], %[scratch1]\n\t"
+		"add x30, x30, %[scratch1]\n\t"
+		"stp %[scratch2], x30, [x29]"
+		:
+		[scratch1] "=&r"(scratch1),
+		[scratch2] "=&r"(scratch2)
+		:
+		[mair]	"r"(MAIR_VALUE),
+		[ttbr0]	"r"(phys_ttbr0_l0_base),
+		[ttbr1]	"r"(phys_ttbr1_l0_base),
+		[tcr]	"r"(TCR_VALUE),
+		[min_addr] "i"(VM_MIN_KERNEL_ADDRESS)
+		: "memory"
+	);
+
+	/* Unmap the identity mapping, we no longer need it.  */
+	ttbr0_l0_base[1] = 0;
+	cache_flush();
+}
+
+void pmap_bootstrap_misc(void)
+{
 	/*
 	 * Determine the kernel virtual address range.
 	 * It starts at the end of the physical memory
@@ -48,29 +119,13 @@ void pmap_bootstrap(void)
 	kernel_virtual_start = phystokv(/* FIXME */ 0x80000000);
 	kernel_virtual_end = kernel_virtual_start + VM_KERNEL_MAP_SIZE;
 
-	ttbr1_l0_base = (pt_entry_t*)phystokv(pmap_grab_page());
-#if 0
-	kernel_l1_base = (pt_entry_t*)phystokv(pmap_grab_page());
-	kernel_l2_base = (pt_entry_t*)phystokv(pmap_grab_page());
-	kernel_l3_base = (pt_entry_t*)phystokv(pmap_grab_page());
 
-	ttbr1_l0_base[0] = kvtophys(kernel_l1_base) | PT_PAGE | PT_AF | PT_KERNEL | PT_ISH | PT_MEM;
-	ttbr1_l1_base[0] = kvtophys(kernel_l2_base) | PT_PAGE | PT_AF | PT_KERNEL | PT_ISH | PT_MEM;
-	ttbr1_l2_base[0] = kvtophys(kernel_l3_base) | PT_PAGE | PT_AF | PT_KERNEL | PT_ISH | PT_MEM;
-	for (int i = 0; i < 512; i++)
-	{
-		ttbr1_l3_base[i] = kvtophys() | PT_PAGE | PT_AF | PT_KERNEL | PT_ISH;
-	}
-
-	/* Attempt to enable the MMU.  */
-	asm volatile("msr mair_el1, %0" :: "r"(0x4404ff));
-	asm volatile("msr tcr_el1, %0" :: "r"(0)); /* FIXME */
-	asm volatile("msr ttbr1_el1, %0", :: "r"(ttbr1_l0_base));
-	asm("dsb ish; mrs %0, sctrl_el1" : "=r"(sctrl));
-	sctrl |= 0xc00801;
-	sctrl &= ~0x308101e;
-	asm volatile("msr sctrl_el1, %0; isb" :: "r"(sctrl));
+	kernel_pmap = &kernel_pmap_store;
+#if NCPUS > 1
+	lock_init(&pmap_system_lock, FALSE);
 #endif
+	simple_lock_init(&kernel_pmap->lock);
+	kernel_pmap->ref_count = 1;
 }
 
 void pmap_virtual_space(
@@ -79,6 +134,123 @@ void pmap_virtual_space(
 {
 	*startp = kernel_virtual_start;
 	*endp = kernel_virtual_end - MAPWINDOW_SIZE;
+}
+
+void pmap_init(void)
+{
+	kmem_cache_init(&table_cache, "pmap", PAGE_SIZE, PAGE_SIZE, NULL, KMEM_CACHE_PHYSMEM);
+
+	pmap_initialized = TRUE;
+}
+
+void pmap_reference(pmap_t pmap)
+{
+	simple_lock(&pmap->lock);
+	pmap->ref_count++;
+	simple_unlock(&pmap->lock);
+}
+
+void pmap_destroy(pmap_t pmap)
+{
+	int c;
+
+	simple_lock(&pmap->lock);
+	c = --pmap->ref_count;
+	simple_unlock(&pmap->lock);
+
+	if (c != 0)
+		return;
+
+	/* TODO */
+	printf("pmap_destroy()\n");
+}
+
+#define BITS_PER_LEVEL	9	/* 4K granularity */
+
+static kern_return_t pmap_walk(
+	pmap_t		pmap,
+	pt_entry_t	*table,
+	vm_offset_t	v,
+	int		significant_bits,
+	boolean_t	create,
+	vm_prot_t	prot,
+	pt_entry_t	**out_entry)
+{
+	unsigned long	index;
+	pt_entry_t	entry;
+	int		next_sb;
+	boolean_t	last_level;
+	pt_entry_t	*next_table;
+
+	if (pmap_debug) printf("pmap_walk(table = %p, v = %#016.x, sb = %d)\n", table, (unsigned long long) v, significant_bits);
+
+	assert(significant_bits > PAGE_SHIFT);
+	next_sb = (significant_bits - PAGE_SHIFT - 1) / BITS_PER_LEVEL * BITS_PER_LEVEL + PAGE_SHIFT;
+	last_level = (next_sb == PAGE_SHIFT);
+
+	index = (v >> next_sb) & ((1 << (significant_bits - next_sb)) - 1);
+	if (pmap_debug) printf("index = %d\n", index);
+	assert(index < PAGE_SIZE / sizeof(pt_entry_t));
+	entry = table[index];
+	if (!(entry & AARCH64_PTE_VALID)) {
+		if (!create)
+			return KERN_INVALID_ADDRESS;
+
+		if (!last_level) {
+			/*
+			 *	This PTE will point to the next-level table.
+			 *	Allocate and clear that now.
+			 */
+			if (!pmap_initialized) {
+				next_table = (pt_entry_t*)phystokv(vm_page_bootalloc(PAGE_SIZE));
+			} else {
+				while (!(next_table = (pt_entry_t*)kmem_cache_alloc(&table_cache)))
+					VM_PAGE_WAIT(0);
+			}
+			memset(next_table, 0, PAGE_SIZE);
+			entry = kvtophys(next_table) | AARCH64_PTE_TABLE;
+		} else {
+			/*
+			 *	This PTE will point to a block; its address
+			 *	will be filled in by our caller.
+			 */
+			entry = AARCH64_PTE_BLOCK | AARCH64_PTE_LEVEL3;
+		}
+		entry |= AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
+			| AARCH64_PTE_ACCESS
+			| AARCH64_PTE_VALID
+			| AARCH64_PTE_NON_SH /* ?? */;
+
+		if (pmap == kernel_pmap) {
+			if (prot & VM_PROT_WRITE)
+				entry |= AARCH64_PTE_UNO_PRW;
+			else
+				entry |= AARCH64_PTE_UNO_PRO;
+			assert(!(prot & VM_PROT_EXECUTE));
+			entry |= AARCH64_PTE_PXN;
+			entry |= AARCH64_PTE_UXN;
+		} else {
+			if (prot & VM_PROT_WRITE)
+				entry |= AARCH64_PTE_URW_PRW;
+			else
+				entry |= AARCH64_PTE_URO_PRO;
+			entry |= AARCH64_PTE_PXN;
+			if (!(prot & VM_PROT_EXECUTE))
+				entry |= AARCH64_PTE_UXN;
+		}
+
+		table[index] = entry;
+	}
+
+	if (!(entry & AARCH64_PTE_TABLE) || last_level) {
+		*out_entry = &table[index];
+		return KERN_SUCCESS;
+	}
+
+	next_table = (pt_entry_t*)(entry & AARCH64_PTE_ADDR_MASK);
+	assert(next_table != PT_ENTRY_NULL);
+	next_table = (pt_entry_t*)phystokv(next_table);
+	return pmap_walk(pmap, next_table, v, next_sb, create, prot, out_entry);
 }
 
 /*
@@ -94,10 +266,56 @@ void pmap_virtual_space(
  *	insert this page into the given map NOW.
  */
 void pmap_enter(
-	pmap_t			pmap,
-	vm_offset_t		v,
-	phys_addr_t		pa,
-	vm_prot_t		prot,
-	boolean_t		wired)
+	pmap_t		pmap,
+	vm_offset_t	v,
+	phys_addr_t	pa,
+	vm_prot_t	prot,
+	boolean_t	wired)
 {
+	kern_return_t	kr;
+	pt_entry_t	*table;
+	pt_entry_t	*entry;
+
+	assert(pmap != NULL);
+	assert(pa != vm_page_fictitious_addr);
+	if (pmap_debug) printf("pmap_enter(%#016.x, %#llx)\n", v, (unsigned long long) pa);
+
+	if (pmap == kernel_pmap && (v < kernel_virtual_start || v >= kernel_virtual_end))
+		panic("pmap_enter(%#016.x, %#llx) falls in physical memory area!\n", (unsigned long) v, (unsigned long long) pa);
+
+	if (pmap != kernel_pmap && v >= kernel_virtual_start)
+		panic("pmap_enter(%#016.x, %#llx) for a non-kernel pmap?\n", (unsigned long) v, (unsigned long long) pa);
+
+	if (v >= VM_MIN_KERNEL_ADDRESS)
+		table = ttbr1_l0_base;
+	else
+		table = pmap->l0_base;
+
+	kr = pmap_walk(pmap, table, v, 36, TRUE, prot, &entry);
+	assert(kr == KERN_SUCCESS);
+	assert(!((*entry) & AARCH64_PTE_ADDR_MASK));
+	*entry |= (pt_entry_t)pa;
+	cache_flush();
+}
+
+
+phys_addr_t pmap_extract(
+	pmap_t		pmap,
+	vm_offset_t	v)
+{
+	kern_return_t	kr;
+	pt_entry_t	*table;
+	pt_entry_t	*entry;
+
+	assert(pmap != NULL);
+
+	if (v >= VM_MIN_KERNEL_ADDRESS)
+		table = ttbr1_l0_base;
+	else
+		table = pmap->l0_base;
+
+	kr = pmap_walk(pmap, table, v, 36, FALSE, VM_PROT_NONE, &entry);
+	if (kr != KERN_SUCCESS)
+		return 0;
+	return (*entry) & AARCH64_PTE_ADDR_MASK;
 }

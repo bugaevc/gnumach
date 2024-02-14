@@ -14,6 +14,7 @@
 # USE OF THIS SOFTWARE.
 
 EXTRA_DIST += \
+	aarch64/aarch64/aarch64asm.sym \
 	aarch64/aarch64/mach_aarch64.srv \
 	aarch64/include/mach/aarch64
 
@@ -27,13 +28,17 @@ libkernel_a_SOURCES += \
         aarch64/aarch64/ast.h \
         aarch64/aarch64/boot.S \
         aarch64/aarch64/cpu_number.h \
+	aarch64/aarch64/cswitch.S \
 	aarch64/aarch64/locore.h \
 	aarch64/aarch64/pcb.c \
+	aarch64/aarch64/percpu.c \
 	aarch64/aarch64/percpu.h \
 	aarch64/aarch64/pmap.h \
 	aarch64/aarch64/pmap.c \
 	aarch64/aarch64/setjmp.h \
 	aarch64/aarch64/spl.h \
+	aarch64/aarch64/spl.S \
+	aarch64/aarch64/strings.c \
 	aarch64/aarch64/task.c \
 	aarch64/aarch64/task.h \
 	aarch64/aarch64/thread.h \
@@ -41,6 +46,9 @@ libkernel_a_SOURCES += \
 	aarch64/aarch64/vm_param.h \
 	aarch64/aarch64/model_dep.c \
 	aarch64/aarch64/undef.c
+
+nodist_libkernel_a_SOURCES += \
+	aarch64/aarch64/aarch64asm.h
 
 #
 # Installation.
@@ -63,6 +71,7 @@ include_mach_aarch64_HEADERS = \
 
 AM_CFLAGS += -mno-outline-atomics
 
+AM_CFLAGS += -static-pie -mcmodel=tiny
 gnumach_LINKFLAGS += -T '$(srcdir)'/aarch64/ldscript
 
 endif # HOST_aarch64

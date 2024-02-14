@@ -64,10 +64,6 @@ extern spl_t	(splhigh)(void);
 extern spl_t	(splx)(spl_t n);
 extern spl_t	(splx_cli)(spl_t n);
 
-extern void splon (unsigned long n);
-
-extern unsigned long sploff (void);
-
 extern void setsoftclock (void);
 extern int spl_init;
 

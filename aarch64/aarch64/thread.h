@@ -19,10 +19,20 @@
 #ifndef _AARCH64_THREAD_
 #define _AARCH64_THREAD_
 
-#include <machine/pcb.h>
+#include "aarch64/vm_param.h"
+
+struct aarch64_kernel_state {
+	long	k_regs[12];	// x19 to x30
+	long	k_sp;
+};
+#define AKS_REG(aks, reg) ((aks)->k_regs[(reg) - 19])
+
+#define STACK_AKS(stack)	\
+	((struct aarch64_kernel_state *)((stack) + KERNEL_STACK_SIZE) - 1)
+#define STACK_AKS_REG(stack, reg) AKS_REG(STACK_AKS(stack), reg)
 
 typedef struct pcb {
-    struct aarch64_thread_state ats;
+    // struct aarch64_thread_state ats;
 } *pcb_t;
 
 #endif /* _AARCH64_THREAD_ */

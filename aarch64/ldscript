@@ -1,12 +1,29 @@
-ENTRY(_start)
+VM_MIN_KERNEL_ADDRESS = 0xfffffff000000000;
+__start = _start - VM_MIN_KERNEL_ADDRESS;
+
+ENTRY(__start)
+
 SECTIONS
 {
-    . = 0x40080000;
-    .text.boot : { *(.text.boot) }
-    .text : { *(.text) }
-    .data : { *(.data) }
-    .rodata : { *(.rodata) }
-    .bss : { *(.bss) }
+    . = 0x40080000 + VM_MIN_KERNEL_ADDRESS;
+    .text : AT(ADDR(.text) - VM_MIN_KERNEL_ADDRESS)
+    {
+        *(.text.boot) *(.text);
+    }
+    .rodata : AT(ADDR(.rodata) - VM_MIN_KERNEL_ADDRESS)
+    {
+        *(.rodata);
+    }
+    .data : AT(ADDR(.data) - VM_MIN_KERNEL_ADDRESS)
+    {
+        *(.data);
+    }
+    .bss : AT(ADDR(.bss) - VM_MIN_KERNEL_ADDRESS)
+    {
+        _bstart = .;
+        *(.bss);
+        _bend = .;
+    }
 
     . = ALIGN(8);
     . = . + 0x4000;

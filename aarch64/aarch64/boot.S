@@ -16,11 +16,30 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-        .section .text.boot
-        .globl  _start
+	.section .text.boot
+	.globl  _start
+	.type _start, @function
 _start:
-        ldr     x1, =_boot_stack_end
-        mov     sp, x1
+	mrs	x1, CurrentEL
+	cmp	x1, #(1 << 2)
+	beq	.in_el1
+	cmp	x1, #(2 << 2)
+	beq	.in_el2
+.in_el3:
+	adr	x1, .in_el1
+	msr	ELR_EL3, x1
+	ldr	x1, =((0x7 << 6) | (5 << 0))
+	msr	SPSR_EL3, x1
+	eret
+.in_el2:
+	adr	x1, .in_el1
+	msr	ELR_EL2, x1
+	ldr	x1, =((0x7 << 6) | (5 << 0))
+	msr	SPSR_EL2, x1
+	eret
+.in_el1:
+	adr	x1, .boot_stack_end
+	mov	sp, x1
 
         // enable FPU for vector instructions... or should we disable them?
         mrs     x1, cpacr_el1
@@ -28,9 +47,16 @@ _start:
         orr     x0, x1, x0
         msr     cpacr_el1, x0
 
-        b       c_boot_entry
-        b       .       // in case we return
+	adr	x0, _bstart
+	adr	x2, _bend
+	sub	x2, x2, x0
+	mov	x1, xzr
+	bl	memset
 
-_boot_stack:
-        .space  4096
-_boot_stack_end:
+	b	c_boot_entry
+	.size _start, . - _start
+
+	.bss
+.boot_stack:
+	.space	4096
+.boot_stack_end:

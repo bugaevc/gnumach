@@ -19,7 +19,7 @@
 #ifndef _AARCH64_IRQ_
 #define _AARCH64_IRQ_
 
-#define NINTR 12378643
+#define NINTR 1234
 
 typedef unsigned int irq_t;
 
