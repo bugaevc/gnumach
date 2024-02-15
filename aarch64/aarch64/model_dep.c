@@ -17,6 +17,7 @@
  */
 
 #include "aarch64/model_dep.h"
+#include "aarch64/locore.h"
 #include <device/cons.h>
 #include <mach/machine.h>
 #include <kern/printf.h>
@@ -40,6 +41,16 @@ void putc(char c)
 {
  	volatile char *out = (char*)phystokv(0x09000000);
 	*out = c;
+}
+
+void machine_idle(int mycpu)
+{
+#ifdef MACH_HYP
+	hyp_idle();
+#else
+	// assert(cpu == cpu_number());
+	asm volatile("wfi");
+#endif
 }
 
 static vm_offset_t heap_start = 0x50000000;
@@ -79,6 +90,8 @@ void __attribute__((noreturn)) c_boot_entry(void)
 	asm volatile("" ::: "memory");
 	pmap_bootstrap_misc();
 	vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, 0x80000000);
+
+	load_exception_vector_table();
 
 	romputc = putc;
 

@@ -13,6 +13,7 @@ static struct pmap	kernel_pmap_store;
 pmap_t			kernel_pmap;
 static pt_entry_t	*ttbr1_l0_base;
 
+static struct kmem_cache pmap_cache;
 static struct kmem_cache table_cache;
 
 /*
@@ -136,11 +137,42 @@ void pmap_virtual_space(
 	*endp = kernel_virtual_end - MAPWINDOW_SIZE;
 }
 
+void load_ttbr0(pmap_t p)
+{
+	asm volatile("msr ttbr0_el1, %0" :: "r"(p));
+	cache_flush();
+}
+
 void pmap_init(void)
 {
-	kmem_cache_init(&table_cache, "pmap", PAGE_SIZE, PAGE_SIZE, NULL, KMEM_CACHE_PHYSMEM);
+	kmem_cache_init(&pmap_cache, "pmap", sizeof(struct pmap), alignof(struct pmap), NULL, 0);
+	kmem_cache_init(&table_cache, "page table", PAGE_SIZE, PAGE_SIZE, NULL, KMEM_CACHE_PHYSMEM);
 
 	pmap_initialized = TRUE;
+}
+
+pmap_t pmap_create(vm_size_t size)
+{
+	pmap_t	p;
+
+	if (size != 0)
+		return PMAP_NULL;
+
+	p = (pmap_t) kmem_cache_alloc(&pmap_cache);
+	if (p == PMAP_NULL)
+		return PMAP_NULL;
+
+	p->l0_base = (pt_entry_t*)kmem_cache_alloc(&table_cache);
+	if (p->l0_base == PT_ENTRY_NULL) {
+		kmem_cache_free(&pmap_cache, (vm_offset_t)p);
+		return PMAP_NULL;
+	}
+	memset(p->l0_base, 0, PAGE_SIZE);
+
+	p->ref_count = 1;
+	simple_lock_init(&p->lock);
+
+	return p;
 }
 
 void pmap_reference(pmap_t pmap)

@@ -28,4 +28,6 @@ int copyoutmsg (const void *kernelbuf, void *userbuf, size_t cn);
 
 extern int call_continuation (continuation_t continuation);
 
+extern void load_exception_vector_table(void);
+
 #endif /* _AARCH64_LOCORE_ */

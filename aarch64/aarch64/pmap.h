@@ -92,9 +92,11 @@ extern vm_offset_t kernel_virtual_end;
 
 #define TCR_VALUE		(TCR_T0SZ(36) | TCR_TG0_4K | TCR_T1SZ(36) | TCR_TG1_4K)
 
+extern void load_ttbr0(pmap_t p);
+
 #define PMAP_ACTIVATE_KERNEL(my_cpu)
 #define PMAP_DEACTIVATE_KERNEL(my_cpu)
-#define PMAP_ACTIVATE_USER(pmap, th, my_cpu)
+#define PMAP_ACTIVATE_USER(pmap, th, my_cpu) ((void)th,(void)my_cpu,load_ttbr0(pmap))
 #define PMAP_DEACTIVATE_USER(pmap, th, my_cpu)
 
 #define pmap_resident_count(pmap) 123456

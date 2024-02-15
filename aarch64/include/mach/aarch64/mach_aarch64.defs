@@ -33,7 +33,7 @@ subsystem
 MACH_AARCH64_IMPORTS
 #endif
 
-import <mach/aarch64/mach_aarch64_types.h>;
+import <mach/machine/mach_aarch64_types.h>;
 
 /*
  *	An array containing bitmasks; the meaning of individual

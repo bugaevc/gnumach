@@ -1,5 +1,4 @@
 void b_to_q() {}
-void call_continuation() {}
 void cb_alloc() {}
 void cb_clear() {}
 void constab() {}
@@ -16,7 +15,6 @@ void __enable_irq() {}
 void halt_all_cpus() {}
 void halt_cpu() {}
 void intnull() {}
-void machine_idle() {}
 void pcb_collect() {}
 void pcb_init() {}
 void pcb_terminate() {}
@@ -26,7 +24,6 @@ void pmap_clear_reference() {}
 void pmap_collect() {}
 void pmap_copy() {}
 void pmap_copy_page() {}
-void pmap_create() {}
 void pmap_is_modified() {}
 void pmap_is_referenced() {}
 void pmap_map_bd() {}
@@ -43,11 +40,7 @@ void resettodr() {}
 void set_user_regs() {}
 void stack_handoff() {}
 void startrtclock() {}
-void switch_context() {}
-void thread_bootstrap_return() {}
-void thread_exception_return() {}
 void thread_getstatus() {}
 void thread_setstatus() {}
 void thread_set_syscall_return() {}
-void thread_syscall_return() {}
 void unmask_irq() {}

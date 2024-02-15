@@ -12,7 +12,10 @@
 # "AS IS" CONDITION.  THE FREE SOFTWARE FOUNDATION DISCLAIMS ANY
 # LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE
 # USE OF THIS SOFTWARE.
-
+
+#
+# Building a distribution.
+#
 EXTRA_DIST += \
 	aarch64/aarch64/aarch64asm.sym \
 	aarch64/aarch64/mach_aarch64.srv \
@@ -30,6 +33,8 @@ libkernel_a_SOURCES += \
         aarch64/aarch64/cpu_number.h \
 	aarch64/aarch64/cswitch.S \
 	aarch64/aarch64/locore.h \
+	aarch64/aarch64/locore.S \
+	aarch64/aarch64/mach_aarch64.c \
 	aarch64/aarch64/pcb.c \
 	aarch64/aarch64/percpu.c \
 	aarch64/aarch64/percpu.h \
@@ -46,6 +51,20 @@ libkernel_a_SOURCES += \
 	aarch64/aarch64/vm_param.h \
 	aarch64/aarch64/model_dep.c \
 	aarch64/aarch64/undef.c
+
+
+#
+# Automatically generated source files.
+#
+# See Makerules.mig.am.
+#
+nodist_lib_dep_tr_for_defs_a_SOURCES += \
+	aarch64/aarch64/mach_aarch64.server.defs.c
+
+nodist_libkernel_a_SOURCES += \
+	aarch64/aarch64/mach_aarch64.server.c \
+	aarch64/aarch64/mach_aarch64.server.h \
+	aarch64/aarch64/mach_aarch64.server.msgids
 
 nodist_libkernel_a_SOURCES += \
 	aarch64/aarch64/aarch64asm.h

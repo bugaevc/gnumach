@@ -23,4 +23,10 @@
 
 unsigned int interrupted_pc(thread_t);
 
+void __attribute__((noreturn)) trap_aarch32(void);
+void __attribute__((noreturn)) trap_sync_exc_el0(void);
+void __attribute__((noreturn)) trap_irq_el0(void);
+void __attribute__((noreturn)) trap_fiq_el0(void);
+void __attribute__((noreturn)) trap_serror_el0(void);
+
 #endif /* _AARCH64_TRAP_H_ */

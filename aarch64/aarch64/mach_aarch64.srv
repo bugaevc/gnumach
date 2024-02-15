@@ -20,4 +20,4 @@
 
 #define KERNEL_SERVER 1
 
-#include <mach/aarch64/mach_aarch64.defs>
+#include <mach/machine/mach_aarch64.defs>
