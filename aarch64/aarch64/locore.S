@@ -5,7 +5,7 @@
 #define SWITCH_TO_PCB_STACK(scratch)				 \
 	mov	scratch, sp					;\
 	orr	scratch, scratch, #(KERNEL_STACK_SIZE - 1)	;\
-	ldr	scratch, [scratch, #(AKS_SIZE + 7)]		;\
+	ldr	scratch, [scratch, #(-AKS_SIZE - 7)]		;\
 	mov	sp, scratch
 
 /* 3 instructions (12 bytes) long */
@@ -107,7 +107,10 @@ LEXT(return_from_trap)
 END(return_from_trap)
 
 ENTRY(call_continuation)
-	SWITCH_TO_PCB_STACK(x1)
+	mov	x1, sp
+	orr	x1, x1, #(KERNEL_STACK_SIZE - 1)
+	sub	x1, x1, #(AKS_SIZE + 7)
+	mov	sp, x1			/* point stack to the top */
 	mov	x29, #0			/* dummy frame */
 	mov	x30, #0			/* dummy return */
 	br	x0			/* goto continuation */

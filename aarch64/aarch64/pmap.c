@@ -139,7 +139,7 @@ void pmap_virtual_space(
 
 void load_ttbr0(pmap_t p)
 {
-	asm volatile("msr ttbr0_el1, %0" :: "r"(p));
+	asm volatile("msr ttbr0_el1, %0" :: "r"(p->l0_base));
 	cache_flush();
 }
 

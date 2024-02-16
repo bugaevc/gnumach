@@ -20,22 +20,20 @@
 	.globl  _start
 	.type _start, @function
 _start:
-	mrs	x1, CurrentEL
-	cmp	x1, #(1 << 2)
+	mrs	x4, CurrentEL
+	cmp	x4, #(1 << 2)
 	beq	.in_el1
-	cmp	x1, #(2 << 2)
+	adr	x5, .in_el1
+	mov	x6, #((0x7 << 6) | (5 << 0))
+	cmp	x4, #(2 << 2)
 	beq	.in_el2
 .in_el3:
-	adr	x1, .in_el1
-	msr	ELR_EL3, x1
-	ldr	x1, =((0x7 << 6) | (5 << 0))
-	msr	SPSR_EL3, x1
+	msr	ELR_EL3, x5
+	msr	SPSR_EL3, x6
 	eret
 .in_el2:
-	adr	x1, .in_el1
-	msr	ELR_EL2, x1
-	ldr	x1, =((0x7 << 6) | (5 << 0))
-	msr	SPSR_EL2, x1
+	msr	ELR_EL2, x5
+	msr	SPSR_EL2, x6
 	eret
 .in_el1:
 	adr	x1, .boot_stack_end

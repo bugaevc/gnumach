@@ -16,7 +16,6 @@ void halt_all_cpus() {}
 void halt_cpu() {}
 void intnull() {}
 void pcb_collect() {}
-void pcb_init() {}
 void pcb_terminate() {}
 void pmap_change_wiring() {}
 void pmap_clear_modify() {}
@@ -38,7 +37,6 @@ void pmap_zero_page() {}
 void q_to_b() {}
 void resettodr() {}
 void set_user_regs() {}
-void stack_handoff() {}
 void startrtclock() {}
 void thread_getstatus() {}
 void thread_setstatus() {}
