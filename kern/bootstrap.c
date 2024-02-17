@@ -122,8 +122,61 @@ free_bootstrap_pages(phys_addr_t start, phys_addr_t end)
     }
 }
 
+asm(
+"usercode_start:\n\t"
+	"mov	x0, #35\n\t"
+	"mov	x1, #42\n\t"
+	"add	x2, x1, x0\t\n"
+	"stp	x0, x1, [sp, #-16]!\n\t"
+	"ldp	x4, x5, [sp]\n\t"
+	"mov	w8, #28\n\t"	/* mach_task_self() */
+	"svc	#0\n\t"
+	"mov	w8, #69\n\t"	/* task_terminate() */
+	"svc	#0\n"
+"usercode_end:");
+
+static void hack_user_bootstrap(void)
+{
+  kern_return_t kr;
+  vm_offset_t code_addr = PAGE_SIZE * 3;
+  vm_offset_t stack_addr = PAGE_SIZE * 4;
+
+  kr = vm_allocate(current_map(), &stack_addr, PAGE_SIZE, TRUE);
+  assert(kr == 0);
+
+  kr = vm_allocate(current_map(), &code_addr, PAGE_SIZE, TRUE);
+  assert(kr == 0);
+
+  extern void usercode_start, usercode_end;
+  memcpy((void*) code_addr, &usercode_start, &usercode_end - &usercode_start);
+
+  kr = vm_protect(current_map(), code_addr, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+  assert(kr == 0);
+
+  USER_REGS(current_thread())->pc = code_addr;
+  USER_REGS(current_thread())->sp = stack_addr + PAGE_SIZE;
+  thread_bootstrap_return();
+}
+
 void bootstrap_create(void)
 {
+
+  // HACK HACK HACK
+  kern_return_t kr;
+  task_t user_task;
+  thread_t user_thread;
+  kr = task_create_kernel(TASK_NULL, FALSE, &user_task);
+  assert(kr == 0);
+  kr = thread_create(user_task, &user_thread);
+  assert(kr == 0);
+  thread_start(user_thread, hack_user_bootstrap);
+  thread_resume(user_thread);
+  assert(kr == 0);
+  task_deallocate(user_task);
+  thread_deallocate(user_thread);
+  // HACK HACK HACK
+  return;
+
   int compat;
   unsigned n = 0;
 #ifdef	MACH_XEN
