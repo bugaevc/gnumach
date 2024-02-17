@@ -26,7 +26,8 @@ int copyinmsg (const void *userbuf, void *kernelbuf, size_t cn, size_t kn);
 int copyout (const void *kernelbuf, void *userbuf, size_t cn);
 int copyoutmsg (const void *kernelbuf, void *userbuf, size_t cn);
 
-extern int call_continuation (continuation_t continuation);
+extern int call_continuation(continuation_t continuation);
+extern boolean_t handle_syscall(struct aarch64_thread_state *ats);
 
 extern void load_exception_vector_table(void);
 

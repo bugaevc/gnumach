@@ -15,8 +15,6 @@ void __enable_irq() {}
 void halt_all_cpus() {}
 void halt_cpu() {}
 void intnull() {}
-void pcb_collect() {}
-void pcb_terminate() {}
 void pmap_change_wiring() {}
 void pmap_clear_modify() {}
 void pmap_clear_reference() {}
@@ -30,7 +28,6 @@ void pmap_pageable() {}
 void pmap_page_protect() {}
 void pmap_phys_address() {}
 void pmap_phys_to_frame() {}
-void pmap_protect() {}
 void pmap_remove() {}
 void pmap_resident_count() {}
 void pmap_zero_page() {}

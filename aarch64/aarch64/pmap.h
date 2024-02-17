@@ -46,6 +46,7 @@ extern vm_offset_t kernel_virtual_end;
 
 /* PTE bits */
 #define AARCH64_PTE_ADDR_MASK	0x000ffffffffff000UL
+#define AARCH64_PTE_PROT_MASK	0x00600000000000c0UL
 
 /* Block or table */
 #define AARCH64_PTE_BLOCK	0x0000000000000000UL	/* points to a block of phys memory */

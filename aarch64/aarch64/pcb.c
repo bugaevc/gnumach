@@ -31,7 +31,7 @@ void stack_attach(
 	STACK_AKS_REG(stack, 29) = (long) 0;
 	STACK_AKS(stack)->k_sp = (long) STACK_AEL(stack);
 
-	STACK_AEL(stack)->saved_state = (pcb_t) USER_REGS(thread);
+	STACK_AEL(stack)->saved_state = USER_REGS(thread);
 }
 
 vm_offset_t stack_detach(thread_t thread)
@@ -68,7 +68,7 @@ void stack_handoff(
 
 	percpu_assign(active_thread, new);
 
-	STACK_AEL(stack)->saved_state = (pcb_t) USER_REGS(new);
+	STACK_AEL(stack)->saved_state = USER_REGS(new);
 }
 
 extern thread_t Switch_context(thread_t old, continuation_t continuation, thread_t new);
@@ -110,6 +110,19 @@ void pcb_init(task_t parent_task, thread_t thread)
 	memset(pcb, 0, sizeof(*pcb));
 
 	thread->pcb = pcb;
+}
+
+void pcb_terminate(thread_t thread)
+{
+	counter(if (--c_threads_current < c_threads_min)
+		c_threads_min = c_threads_current);
+
+	kmem_cache_free(&pcb_cache, (vm_offset_t) thread->pcb);
+	thread->pcb = NULL;
+}
+
+void pcb_collect(__attribute__((unused)) const thread_t thread)
+{
 }
 
 /*

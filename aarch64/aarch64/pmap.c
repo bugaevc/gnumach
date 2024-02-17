@@ -107,6 +107,7 @@ void pmap_bootstrap(void)
 	/* Unmap the identity mapping, we no longer need it.  */
 	ttbr0_l0_base[1] = 0;
 	cache_flush();
+	/* TODO free the page */
 }
 
 void pmap_bootstrap_misc(void)
@@ -127,6 +128,7 @@ void pmap_bootstrap_misc(void)
 #endif
 	simple_lock_init(&kernel_pmap->lock);
 	kernel_pmap->ref_count = 1;
+	kernel_pmap->l0_base = PT_ENTRY_NULL;
 }
 
 void pmap_virtual_space(
@@ -139,7 +141,7 @@ void pmap_virtual_space(
 
 void load_ttbr0(pmap_t p)
 {
-	asm volatile("msr ttbr0_el1, %0" :: "r"(p->l0_base));
+	asm volatile("msr ttbr0_el1, %0" :: "r"(kvtophys(p->l0_base)));
 	cache_flush();
 }
 
@@ -195,6 +197,31 @@ void pmap_destroy(pmap_t pmap)
 
 	/* TODO */
 	printf("pmap_destroy()\n");
+}
+
+static pt_entry_t pmap_prot(vm_offset_t v, vm_prot_t prot)
+{
+	pt_entry_t	entry = 0;
+
+	if (v >= VM_MIN_KERNEL_ADDRESS) {
+		if (prot & VM_PROT_WRITE)
+			entry |= AARCH64_PTE_UNO_PRW;
+		else
+			entry |= AARCH64_PTE_UNO_PRO;
+		assert(!(prot & VM_PROT_EXECUTE));
+		entry |= AARCH64_PTE_PXN;
+		entry |= AARCH64_PTE_UXN;
+	} else {
+		if (prot & VM_PROT_WRITE)
+			entry |= AARCH64_PTE_URW_PRW;
+		else
+			entry |= AARCH64_PTE_URO_PRO;
+		entry |= AARCH64_PTE_PXN;
+		if (!(prot & VM_PROT_EXECUTE))
+			entry |= AARCH64_PTE_UXN;
+	}
+
+	return entry;
 }
 
 #define BITS_PER_LEVEL	9	/* 4K granularity */
@@ -253,24 +280,7 @@ static kern_return_t pmap_walk(
 			| AARCH64_PTE_VALID
 			| AARCH64_PTE_NON_SH /* ?? */;
 
-		if (pmap == kernel_pmap) {
-			if (prot & VM_PROT_WRITE)
-				entry |= AARCH64_PTE_UNO_PRW;
-			else
-				entry |= AARCH64_PTE_UNO_PRO;
-			assert(!(prot & VM_PROT_EXECUTE));
-			entry |= AARCH64_PTE_PXN;
-			entry |= AARCH64_PTE_UXN;
-		} else {
-			if (prot & VM_PROT_WRITE)
-				entry |= AARCH64_PTE_URW_PRW;
-			else
-				entry |= AARCH64_PTE_URO_PRO;
-			entry |= AARCH64_PTE_PXN;
-			if (!(prot & VM_PROT_EXECUTE))
-				entry |= AARCH64_PTE_UXN;
-		}
-
+		entry |= pmap_prot(v, prot);
 		table[index] = entry;
 	}
 
@@ -283,6 +293,14 @@ static kern_return_t pmap_walk(
 	assert(next_table != PT_ENTRY_NULL);
 	next_table = (pt_entry_t*)phystokv(next_table);
 	return pmap_walk(pmap, next_table, v, next_sb, create, prot, out_entry);
+}
+
+static pt_entry_t *pmap_table(pmap_t pmap, vm_offset_t v)
+{
+	if (v >= VM_MIN_KERNEL_ADDRESS)
+		return ttbr1_l0_base;
+	assert(pmap != kernel_pmap);
+	return pmap->l0_base;
 }
 
 /*
@@ -305,7 +323,6 @@ void pmap_enter(
 	boolean_t	wired)
 {
 	kern_return_t	kr;
-	pt_entry_t	*table;
 	pt_entry_t	*entry;
 
 	assert(pmap != NULL);
@@ -318,15 +335,9 @@ void pmap_enter(
 	if (pmap != kernel_pmap && v >= kernel_virtual_start)
 		panic("pmap_enter(%#016.x, %#llx) for a non-kernel pmap?\n", (unsigned long) v, (unsigned long long) pa);
 
-	if (v >= VM_MIN_KERNEL_ADDRESS)
-		table = ttbr1_l0_base;
-	else
-		table = pmap->l0_base;
-
-	kr = pmap_walk(pmap, table, v, 36, TRUE, prot, &entry);
+	kr = pmap_walk(pmap, pmap_table(pmap, v), v, 36, TRUE, prot, &entry);
 	assert(kr == KERN_SUCCESS);
-	assert(!((*entry) & AARCH64_PTE_ADDR_MASK));
-	*entry |= (pt_entry_t)pa;
+	*entry = ((*entry) & ~AARCH64_PTE_ADDR_MASK) | (pt_entry_t)pa;
 	cache_flush();
 }
 
@@ -336,18 +347,38 @@ phys_addr_t pmap_extract(
 	vm_offset_t	v)
 {
 	kern_return_t	kr;
-	pt_entry_t	*table;
 	pt_entry_t	*entry;
 
 	assert(pmap != NULL);
 
-	if (v >= VM_MIN_KERNEL_ADDRESS)
-		table = ttbr1_l0_base;
-	else
-		table = pmap->l0_base;
-
-	kr = pmap_walk(pmap, table, v, 36, FALSE, VM_PROT_NONE, &entry);
+	kr = pmap_walk(pmap, pmap_table(pmap, v), v, 36, FALSE, VM_PROT_NONE, &entry);
 	if (kr != KERN_SUCCESS)
 		return 0;
 	return (*entry) & AARCH64_PTE_ADDR_MASK;
+}
+
+void pmap_protect(
+	pmap_t		pmap,
+	vm_offset_t	sva,
+	vm_offset_t	eva,
+	vm_prot_t	prot)
+{
+	kern_return_t	kr;
+	vm_offset_t	v;
+	pt_entry_t	*table;
+	pt_entry_t	*entry;
+
+	assert(pmap != NULL);
+	assert(sva < eva);
+
+	table = pmap_table(pmap, sva);
+	assert(pmap_table(pmap, eva - 1) == table);
+
+	/* TODO: don't pmap_walk() each iteration */
+	for (v = sva; v != eva; v += PAGE_SIZE) {
+		kr = pmap_walk(pmap, table, v, 36, FALSE, VM_PROT_NONE, &entry);
+		assert(kr == KERN_SUCCESS);
+		*entry = ((*entry) & ~AARCH64_PTE_PROT_MASK) | pmap_prot(v, prot);
+	}
+	cache_flush();
 }

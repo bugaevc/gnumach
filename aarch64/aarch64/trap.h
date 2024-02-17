@@ -28,5 +28,9 @@ void __attribute__((noreturn)) trap_sync_exc_el0(void);
 void __attribute__((noreturn)) trap_irq_el0(void);
 void __attribute__((noreturn)) trap_fiq_el0(void);
 void __attribute__((noreturn)) trap_serror_el0(void);
+void trap_sync_exc_el1(unsigned long esr, vm_offset_t far);
+void trap_irq_el1(void);
+void trap_fiq_el1(void);
+void trap_serror_el1(void);
 
 #endif /* _AARCH64_TRAP_H_ */

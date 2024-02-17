@@ -29,6 +29,7 @@ struct aarch64_kernel_state {
 #define AKS_REG(aks, reg)		((aks)->k_regs[(reg) - 19])
 
 typedef struct pcb {
+	long	kernel_exception_save[20];
 	struct aarch64_thread_state ats;
 	long	esr;
 	long	far;
@@ -37,7 +38,8 @@ typedef struct pcb {
 #define USER_REGS(thread)		(&(thread)->pcb->ats)
 
 struct aarch64_exception_link {
-	pcb_t	saved_state;
+	/* points to pcb->ats */
+	struct aarch64_thread_state *saved_state;
 };
 
 #define STACK_AKS(stack)	\
