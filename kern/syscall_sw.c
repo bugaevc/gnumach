@@ -72,7 +72,7 @@ static kern_return_t	kern_invalid(void)
 	return(KERN_INVALID_ARGUMENT);
 }
 
-mach_trap_t	mach_trap_table[] = {
+const mach_trap_t	mach_trap_table[] = {
 	MACH_TRAP(kern_invalid, 0),		/* 0 */		/* Unix */
 	MACH_TRAP(kern_invalid, 0),		/* 1 */		/* Unix */
 	MACH_TRAP(kern_invalid, 0),		/* 2 */		/* Unix */
@@ -221,4 +221,4 @@ mach_trap_t	mach_trap_table[] = {
 	MACH_TRAP(kern_invalid, 0),		/* 129 */
 };
 
-int	mach_trap_count = (sizeof(mach_trap_table) / sizeof(mach_trap_table[0]));
+const int mach_trap_count = (sizeof(mach_trap_table) / sizeof(mach_trap_table[0]));

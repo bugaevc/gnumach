@@ -46,8 +46,8 @@ typedef struct {
 	const char	*mach_trap_name;
 } mach_trap_t;
 
-extern mach_trap_t	mach_trap_table[];
-extern int		mach_trap_count;
+extern const mach_trap_t mach_trap_table[];
+extern const int	mach_trap_count;
 
 #define	MACH_TRAP(name, arg_count)		\
 		{ (arg_count), (generic_trap_function) (name), FALSE, #name }
