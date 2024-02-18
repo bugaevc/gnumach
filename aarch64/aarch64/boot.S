@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2022 Free Software Foundation
+ *  Copyright (C) 2024 Free Software Foundation
  *
  * This program is free software ; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,19 +39,21 @@ _start:
 	adr	x1, .boot_stack_end
 	mov	sp, x1
 
+#if 0
         // enable FPU for vector instructions... or should we disable them?
         mrs     x1, cpacr_el1
         mov     x0, #(3 << 20)
         orr     x0, x1, x0
         msr     cpacr_el1, x0
+#endif
 
-	adr	x0, _bstart
-	adr	x2, _bend
+	adr	x0, EXT(_bstart)
+	adr	x2, EXT(_bend)
 	sub	x2, x2, x0
 	mov	x1, xzr
-	bl	memset
+	bl	EXT(memset)
 
-	b	c_boot_entry
+	b	EXT(c_boot_entry)
 	.size _start, . - _start
 
 	.bss

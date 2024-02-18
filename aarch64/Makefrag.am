@@ -90,7 +90,7 @@ include_mach_aarch64_HEADERS = \
 
 AM_CFLAGS += -mno-outline-atomics
 
-AM_CFLAGS += -static-pie -mcmodel=tiny
+AM_CFLAGS += -static-pie -mcmodel=tiny -mgeneral-regs-only
 gnumach_LINKFLAGS += -T '$(srcdir)'/aarch64/ldscript
 
 endif # HOST_aarch64
