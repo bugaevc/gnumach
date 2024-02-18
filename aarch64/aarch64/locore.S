@@ -41,7 +41,7 @@
 	stp	x2, x3, [sp, #(ATS_TPIDR_EL0)]			;\
 	mrs	x2, ESR_EL1					;\
 	mrs	x3, FAR_EL1					;\
-	stp	x2, x3, [sp, #(PCB_ESR)]
+	stp	x2, x3, [sp, #(ATS_SIZE)]
 
 /* 20 instructions (80 bytes) long */
 #define SAVE_EL1_STATE()					 \

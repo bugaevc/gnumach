@@ -6,6 +6,7 @@ offset	thread			th	swap_func
 expr	&STACK_AKS(0)->k_regs				KSS_REGS
 size	aarch64_kernel_state	aks
 size	aarch64_exception_link	ael
+size	aarch64_thread_state	ats
 expr	KERNEL_STACK_SIZE
 
 offset	aarch64_thread_state	ATS	x[0]		ATS_X
@@ -13,8 +14,6 @@ offset	aarch64_thread_state	ATS	sp
 offset	aarch64_thread_state	ATS	pc
 offset	aarch64_thread_state	ATS	tpidr_el0
 offset	aarch64_thread_state	ATS	cpsr
-
-offset	pcb			PCB	esr
 
 offset	percpu			pc	active_thread	PERCPU_ACTIVE_THREAD
 offset	percpu			pc	active_stack	PERCPU_ACTIVE_STACK
