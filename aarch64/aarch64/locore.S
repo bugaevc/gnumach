@@ -43,7 +43,7 @@
 	mrs	x3, FAR_EL1					;\
 	stp	x2, x3, [sp, #(ATS_SIZE)]
 
-/* 20 instructions (80 bytes) long */
+/* 22 instructions (88 bytes) long */
 #define SAVE_EL1_STATE()					 \
 	/*
 	 *	Spill caller-saved registers onto the current stack,
@@ -66,10 +66,12 @@
 	ldr	x0, [x0, #PERCPU_ACTIVE_STACK]			;\
 	adr	x1, EXT(kernel_stack)				;\
 	ldr	x1, [x1]					;\
+	tst	x1, x1						;\
+	b.eq	0f						;\
 	mov	x2, sp						;\
 	cmp	x2, x0						;\
 	ccmp	x2, x1, 2, cs					;\
-	bls	0f						;\
+	b.ls	0f						;\
 	mov	sp, x1						;\
 0:								;\
 	stp	x2, x2, [sp, #-16]!				;\
@@ -263,13 +265,13 @@ ENTRY(handle_syscall)
 	adr	x9, EXT(mach_trap_count)	/* this should really be a compile-time constant... */
 	ldr	x9, [x9]
 	cmp	x9, x8
-	bls	.bad_syscall
-	ubfiz	x8, x8, 5, 32			/* $x8 *= sizeof(mach_trap_t) */
+	b.ls	.bad_syscall
+	ubfiz	x8, x8, #5, #32			/* $x8 *= sizeof(mach_trap_t) */
 	adr	x9, EXT(mach_trap_table)
 	add	x9, x9, x8
 	ldp	x10, x11, [x9]
-	cmp	x10, #7
-	bhi	.load_stack_args
+	cmp	x10, #8
+	b.hi	.load_stack_args
 .load_reg_args:
 	ldp	x0, x1, [x12, #(ATS_X)]
 	ldp	x2, x3, [x12, #(ATS_X + 16)]
