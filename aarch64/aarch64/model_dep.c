@@ -19,9 +19,29 @@
 #include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
 #include <device/cons.h>
+#include <device/dtb.h>
 #include <mach/machine.h>
 #include <kern/printf.h>
 #include <kern/startup.h>
+#include <string.h>
+
+/* Some ELF definitions, for applying relocations.  */
+
+#define R_AARCH64_NONE		0
+#define R_AARCH64_RELATIVE	1027
+
+typedef uint64_t	Elf64_Addr;
+typedef uint64_t	Elf64_Xword;
+typedef int64_t		Elf64_Sxword;
+
+typedef struct
+{
+	Elf64_Addr	r_offset;
+	Elf64_Xword	r_info;
+	Elf64_Sxword	r_addend;
+} Elf64_Rela;
+
+
 
 char *kernel_cmdline;
 char /*struct start_info*/ boot_info;
@@ -78,13 +98,44 @@ static void zero_out_bss(void)
 	memset(&__bss_start, 0, (char *) &__bss_end - (char *) &__bss_start);
 }
 
-void __attribute__((noreturn)) c_boot_entry(void)
+static void apply_runtime_relocations(void)
 {
+	extern const Elf64_Rela	__rela_start, __rela_end;
+	extern const void	__text_start;
+
+	const Elf64_Rela	*rela;
+	Elf64_Addr		*addr;
+	Elf64_Addr		slide;
+
+	/* TODO: This assumes we're linked at base address 0x0.  */
+	slide = (Elf64_Addr) &__text_start;
+
+	for (rela = &__rela_start; rela != &__rela_end; rela++) {
+		switch (rela->r_info) {
+			case R_AARCH64_NONE:
+				/* Nothing to do.  */
+				break;
+			case R_AARCH64_RELATIVE:
+				addr = (Elf64_Addr *)(slide + rela->r_offset);
+				*addr = slide + rela->r_addend;
+				break;
+			default:
+				panic("Unimplemented relocation type\n");
+		}
+	}
+}
+
+void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
+{
+	kern_return_t		kr;
 	const char		*c;
 
 	extern const char	version[];
 
 	zero_out_bss();
+
+	kr = dtb_load(dtb);
+	assert(kr == KERN_SUCCESS);
 
 	/*
 	 *	Before we do anything else, print the hello message.
@@ -98,6 +149,7 @@ void __attribute__((noreturn)) c_boot_entry(void)
 	pmap_bootstrap();
 	/* Now running with MMU from highmem, re-load things.  */
 	asm volatile("" ::: "memory");
+	apply_runtime_relocations();
 	pmap_bootstrap_misc();
 	vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, 0x80000000);
 

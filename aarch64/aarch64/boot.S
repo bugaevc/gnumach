@@ -19,6 +19,19 @@
 #include <mach/machine/asm.h>
 
 	.section .text.boot
+.boot_header:
+	/* See https://docs.kernel.org/arch/arm64/booting.html#call-the-kernel-image */
+	b	EXT(_start)
+	nop
+	.dword	0				/* ??? */
+	.dword	EXT(_image_size)
+	.dword	1
+	.dword	0
+	.dword	0
+	.dword	0
+	.dword	0x644d5241
+	.dword	0
+
 ENTRY(_start)
 	mrs	x4, CurrentEL
 	cmp	x4, #(1 << 2)

@@ -50,7 +50,9 @@ libkernel_a_SOURCES += \
 	aarch64/aarch64/trap.c \
 	aarch64/aarch64/vm_param.h \
 	aarch64/aarch64/model_dep.c \
-	aarch64/aarch64/undef.c
+	aarch64/aarch64/undef.c \
+	device/dtb.h \
+	device/dtb.c
 
 
 #
@@ -91,6 +93,9 @@ include_mach_aarch64_HEADERS = \
 AM_CFLAGS += -mno-outline-atomics
 
 AM_CFLAGS += -static-pie -mcmodel=tiny -mgeneral-regs-only
-gnumach_LINKFLAGS += -T '$(srcdir)'/aarch64/ldscript
+gnumach_LINKFLAGS += -T '$(srcdir)'/aarch64/ldscript -static -pie --no-dynamic-linker
+
+# Hack to make gnumach.elf the ELF (useful for debugging), and bare gnumach the bootable image.
+gnumach_LINKFLAGS += $(gnumach_LDADD) -o gnumach.elf && $(OBJCOPY) -O binary gnumach.elf gnumach && :
 
 endif # HOST_aarch64

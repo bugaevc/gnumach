@@ -20,6 +20,7 @@
 #define _AARCH64_MODEL_DEP_H_
 
 #include <mach/std_types.h>
+#include <device/dtb.h>
 
 /*
  * Find devices.  The system is alive.
@@ -51,6 +52,6 @@ extern void machine_relax (void);
 /*
  * C boot entrypoint - called by boot_entry in boothdr.S.
  */
-extern void c_boot_entry(void);
+extern void c_boot_entry(dtb_t dtb) __attribute__ ((noreturn));
 
 #endif /* _AARCH64_MODEL_DEP_H_ */
