@@ -16,10 +16,10 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include <mach/machine/asm.h>
+
 	.section .text.boot
-	.globl  _start
-	.type _start, @function
-_start:
+ENTRY(_start)
 	mrs	x4, CurrentEL
 	cmp	x4, #(1 << 2)
 	beq	.in_el1
@@ -54,7 +54,7 @@ _start:
 	bl	EXT(memset)
 
 	b	EXT(c_boot_entry)
-	.size _start, . - _start
+END(_start)
 
 	.bss
 .boot_stack:
