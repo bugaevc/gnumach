@@ -47,12 +47,6 @@ ENTRY(_start)
         msr     cpacr_el1, x0
 #endif
 
-	adr	x0, EXT(_bstart)
-	adr	x2, EXT(_bend)
-	sub	x2, x2, x0
-	mov	x1, xzr
-	bl	EXT(memset)
-
 	b	EXT(c_boot_entry)
 END(_start)
 

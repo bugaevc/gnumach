@@ -71,10 +71,20 @@ void machine_init(void)
 	spl_init = TRUE;
 }
 
+static void zero_out_bss(void)
+{
+	extern void	__bss_start, __bss_end;
+
+	memset(&__bss_start, 0, (char *) &__bss_end - (char *) &__bss_start);
+}
+
 void __attribute__((noreturn)) c_boot_entry(void)
 {
-	const char *c;
-	extern const char version[];
+	const char		*c;
+
+	extern const char	version[];
+
+	zero_out_bss();
 
 	/*
 	 *	Before we do anything else, print the hello message.
