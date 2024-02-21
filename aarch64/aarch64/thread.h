@@ -23,13 +23,22 @@
 #include "mach/machine/thread_status.h"
 
 struct aarch64_kernel_state {
-	long	k_regs[12];	// x19 to x30
+	long	k_regs[12];	/* x19 to x30 */
 	long	k_sp;
 };
 #define AKS_REG(aks, reg)		((aks)->k_regs[(reg) - 19])
 
+struct aarch64_kernel_exception_state {
+	long	pc;
+	long	cpsr;
+	long	regs[20];	/* x0 to x18, x30, in reverse order */
+};
+
 typedef struct pcb {
-	long	kernel_exception_save[20];
+	/* Leave enough space for dumping kernel
+	   state while on the PCB stack.  */
+	struct aarch64_kernel_exception_state akes_buffer;
+
 	struct aarch64_thread_state ats;
 	long	esr;
 	long	far;

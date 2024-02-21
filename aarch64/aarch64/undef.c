@@ -2,8 +2,6 @@ void b_to_q() {}
 void cb_alloc() {}
 void cb_clear() {}
 void constab() {}
-void copyin() {}
-void copyout() {}
 void delay() {}
 void dev_indirect_count() {}
 void dev_indirect_list() {}

@@ -32,7 +32,9 @@
 #define ESR_IABT_IFSC_PERM_L3	0x0f		/* permission fault, level 3 */
 #define ESR_IABT_IFSC_SYNC_EXT	0x10		/* synchronous external abort */
 
-#define ESR_DABT_DFSC(esr)	((esr) & 0x3f)	/* instruction fault status code */
+#define ESR_DABT_DFSC(esr)	((esr) & 0x3f)	/* data fault status code */
+
+#define ESR_DABT_DFSC_MTE	0x11		/* synchronous MTE tag check fault */
 
 #define ESR_DABT_WNR		0x40		/* "write, not read" bit */
 
@@ -118,6 +120,8 @@ void trap_sync_exc_el0(void)
 			/* Data fault.  */
 			if (far >= VM_MAX_USER_ADDRESS)
 				exception(EXC_BAD_ACCESS, KERN_INVALID_ADDRESS, far);
+			if (ESR_DABT_DFSC(esr) == ESR_DABT_DFSC_MTE)
+				exception(EXC_BAD_ACCESS, EXC_AARCH64_MTE, far);
 			(void) vm_fault(current_map(), trunc_page(far),
 					esr_to_fault_type(esr),
 					FALSE, FALSE,
@@ -154,12 +158,17 @@ void trap_fiq_el1(void)
 	printf("Got FIQ while in EL1, ignoring for now\n");
 }
 
-void trap_sync_exc_el1(unsigned long esr, vm_offset_t far)
+void trap_sync_exc_el1(
+	unsigned long				esr,
+	vm_offset_t				far,
+	struct aarch64_kernel_exception_state	*akes)
 {
-	kern_return_t kr;
+	kern_return_t	kr;
+	struct recovery	*rp;
+	vm_offset_t	recover_base = (vm_offset_t) &recover_table;
 
 	printf("Sync exc from EL1!\n");
-	printf("ESR: %#lx, FAR: %#lx\n", esr, far);
+	printf("ESR: %#lx, FAR: %#lx, PC: %#lx\n", esr, far, akes->pc);
 
 	switch (ESR_EC(esr)) {
 		case ESR_EC_DABT_SAME_EL:
@@ -179,6 +188,18 @@ void trap_sync_exc_el1(unsigned long esr, vm_offset_t far)
 				      FALSE, FALSE, NULL);
 			if (kr == KERN_SUCCESS)
 				return;
+
+			/*
+			 *	If we have a recovery handler for this address,
+			 *	jump there.
+			 */
+			for (rp = recover_table; rp < recover_table_end; rp++) {
+				if ((vm_offset_t) akes->pc == recover_base + rp->fault_addr_off) {
+					akes->pc = recover_base + rp->recover_addr_off;
+					return;
+				}
+			}
+
 			panic("Kernel segfault\n");
 		default:
 			panic("Exception in EL1\n");

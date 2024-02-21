@@ -21,6 +21,18 @@
 
 #include <mach/mach_types.h>
 
+/*
+ *	Fault recovery in copyin/copyout routines.
+ *
+ *	Both offsets are relative to &recover_table.
+ */
+struct recovery {
+	vm_offset_t	fault_addr_off;
+	vm_offset_t	recover_addr_off;
+};
+extern const struct recovery recover_table[];
+extern const struct recovery recover_table_end[];
+
 int copyin (const void *userbuf, void *kernelbuf, size_t cn);
 int copyinmsg (const void *userbuf, void *kernelbuf, size_t cn, size_t kn);
 int copyout (const void *kernelbuf, void *userbuf, size_t cn);

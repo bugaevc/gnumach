@@ -90,6 +90,9 @@
 	stp	x14, x15, [sp, #-16]!				;\
 	stp	x16, x17, [sp, #-16]!				;\
 	stp	x18, x30, [sp, #-16]!				;\
+	mrs	x0, ELR_EL1					;\
+	mrs	x1, SPSR_EL1					;\
+	stp	x0, x1, [sp, #-16]!				;\
 	/*
 	 *	If we were on the PCB stack,
 	 *	switch to the kernel stack.
@@ -107,8 +110,65 @@
 	mov	sp, x1						;\
 0:								;\
 	stp	x2, x2, [sp, #-16]!				;\
-	/* FIXME: SPSR, ELR */
 
+
+/*
+ *	Fault recovery.
+ */
+#define RECOVER(handler)					 \
+	.pushsection .rodata, 2					;\
+	.xword	9f - EXT(recover_table)				;\
+	.xword	handler - EXT(recover_table)			;\
+	.popsection						;\
+9:
+
+	.pushsection .rodata, 2
+	.global EXT(recover_table)
+LEXT(recover_table)
+	.popsection
+
+/*
+ *	Copy memory from user's untrusted address into the
+ *	kernel's memory. Return 0 for success, 1 for bad
+ *	address.
+ *
+ *	TODO optimize this
+ */
+ENTRY(copyin)
+	cbz	x2, 1f
+	mov	x3, #0
+0:
+	RECOVER(2f)
+	ldrb	w4, [x0, x3]
+	strb	w4, [x1, x3]
+	add	x3, x3, #1
+	cmp	x2, x3
+	b.ne	0b
+1:
+	mov	x0, #0
+	ret
+2:
+	mov	x0, #1
+	ret
+END(copyin)
+
+ENTRY(copyout)
+	cbz	x2, 1f
+	mov	x3, #0
+0:
+	ldrb	w4, [x0, x3]
+	RECOVER(2f)
+	strb	w4, [x1, x3]
+	add	x3, x3, #1
+	cmp	x2, x3
+	b.ne	0b
+1:
+	mov	x0, #0
+	ret
+2:
+	mov	x0, #1
+	ret
+END(copyout)
 
 /*
  *	Called as a function, makes the current thread
@@ -132,11 +192,17 @@ ENTRY(thread_bootstrap_return)
 	/* fallthrough */
 END(thread_exception_return)
 
+/*
+ *	We're running on the PCB stack, meaning our SP points to
+ *	"struct aarch64_thread_state ats" member of the PCB; that's
+ *	also how we want to leave it, so it will be restored on a
+ *	subsequent trap from user.
+ *
+ *	Take an AST if needed, restore the saved register values, and
+ *	return to EL0.
+ */
 .type EXT(return_to_user), @function
 LEXT(return_to_user)
-	/* running on PCB stack */
-	// CPU_NUMBER(x0)
-	// ldrb	w1, CX(EXT(need_ast), x0)
 	adr	x0, EXT(need_ast)
 	ldr	w1, [x0]
 	cbnz	w1, .take_ast1
@@ -181,6 +247,11 @@ LEXT(return_to_kernel)
 
 	ldp	x0, x1, [sp]		/* restore stack */
 	mov	sp, x0
+
+	ldp	x0, x1, [sp], #16
+	msr	ELR_EL1, x0
+	msr	SPSR_EL1, x1
+
 	ldp	x18, x30, [sp], #16	/* restore registers */
 	ldp	x16, x17, [sp], #16
 	ldp	x14, x15, [sp], #16
@@ -226,6 +297,7 @@ ENTRY(exception_vector_table)
 	SAVE_EL1_STATE()
 	mrs	x0, ESR_EL1
 	mrs	x1, FAR_EL1
+	/* x2 contains &aarch64_kernel_exception_state */
 	bl	EXT(trap_sync_exc_el1)
 	b	EXT(return_to_kernel)
 .balign 0x80
@@ -311,17 +383,39 @@ ENTRY(handle_syscall)
 	ldp	x6, x7, [x12, #(ATS_X + 48)]
 
 	blr	x11
-	ldr	x12, [sp, #16]
+	ldr	x12, [x29, #16]
 	str	x0, [x12, #(ATS_X)]		/* put return code into user's x0 */
 	mov	w0, #1				/* return TRUE */
 
 .out:
+	mov	sp, x29
 	ldp	x29, x30, [sp], #32
 	ret
+.load_stack_args:
+	sub	x10, x10, #8
+	mov	x0, x10
+	add	x1, x10, #1
+	tst	x0, #1
+	lsl	x0, x0, #3
+	lsl	x1, x1, #3
+	csel	x0, x0, x1, eq
+	ldr	x13, [x12, #(ATS_SP)]
+	add	x13, x13, x0
+0:
+	RECOVER(.bad_syscall)
+	ldp	x0, x1, [x13, #-16]!
+	stp	x0, x1, [sp, #-16]!
+	cmp	x10, #2
+	b.ls	.load_reg_args
+	sub	x10, x10, #2
+	b	0b
 .bad_syscall:
 	mov	w0, #0				/* return FALSE */
 	b	.out
-.load_stack_args:
-	/* FIXME */
-	b	.
 END(handle_syscall)
+
+	.pushsection .rodata, 2
+END(recover_table)
+	.global EXT(recover_table_end)
+LEXT(recover_table_end)
+	.popsection
