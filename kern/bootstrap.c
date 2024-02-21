@@ -131,6 +131,23 @@ asm(
 	"ldp	x4, x5, [sp]\n\t"
 	"mov	w8, #28\n\t"	/* mach_task_self() */
 	"svc	#0\n\t"
+	"stp	x0, xzr, [sp]\n\t"
+	"add	x1, sp, #8\n\t"	/* address = sp + 8 */
+	"mov	x2, #4096\n\t"	/* size = PAGE_SIZE */
+	"mov	x3, #0\n\t"	/* mask = 0 */
+	"mov	x4, #1\n\t"	/* anywhere = TRUE */
+	"mov	x5, #0\n\t"	/* memobj = MACH_PORT_NULL */
+	"mov	x6, #0\n\t"	/* offset = 0 */
+	"mov	x7, #0\n\t"	/* copy = FALSE */
+	"mov	x10, #2\n\t"	/* inheritance = 2 */
+	"stp	x10, xzr, [sp, #-16]!\n\t"
+	"mov	x10, #3\n\t"	/* cur_protection = rw */
+	"mov	x11, #7\n\t"	/* max_protection = rwx */
+	"stp	x10, x11, [sp, #-16]!\n\t"
+	"mov	w8, #64\n\t"	/* vm_map() */
+	"svc	#0\n\t"
+	"ldp	x0, x1, [sp, #(16+16)]\n\t"
+	"str	x0, [x1]\n\t"
 	"mov	w8, #69\n\t"	/* task_terminate() */
 	"svc	#0\n"
 "usercode_end:");
