@@ -2,6 +2,15 @@
 #include "aarch64/aarch64asm.h"
 #include "aarch64/cpu_number.h"
 
+/*
+ *	The top (highest addresses) of each kernel stack contain:
+ *
+ *	struct aarch64_exception_link;
+ *	struct aarch64_kernel_state;
+ *
+ *	where aarch64_exception_link contains a single pointer into
+ *	the PCB.  Point our stack there.
+ */
 #define SWITCH_TO_PCB_STACK(scratch)				 \
 	mov	scratch, sp					;\
 	orr	scratch, scratch, #(KERNEL_STACK_SIZE - 1)	;\
@@ -13,6 +22,21 @@
 	adr	scratch, EXT(kernel_stack)			;\
 	ldr	scratch, [scratch]				;\
 	mov	sp, scratch
+
+/*
+ *	We just caught an exception or an interrupt from EL0; this
+ *	saved pc -> ELR_EL1, replacing it with the handler's address,
+ *	and sp -> SP_EL0, replacing it with the previous EL1 stack
+ *	pointer (SP_EL1).  The other general-purpose registers are as
+ *	they have been in EL0.  We want to save them into memory, to
+ *	be able to restore them back later (in return_to_user).
+ *
+ *	The way we achieve this is we leave SP_EL1 pointing right to
+ *	"struct aarch64_thread_state ats" member of the PCB; this is
+ *	referred to as running on "the PCB stack", even though you
+ *	cannot use PCB as a stack otherwise, e.g. you cannot call C
+ *	code while on the PCB stack.
+ */
 
 /* 25 instructions (100 bytes) long */
 #define SAVE_EL0_STATE()					 \
@@ -39,16 +63,23 @@
 	mrs	x2, TPIDR_EL0					;\
 	mrs	x3, SPSR_EL1					;\
 	stp	x2, x3, [sp, #(ATS_TPIDR_EL0)]			;\
+	/*
+	 *	ESR/FAR are not a part of aarch64_thread_state,
+	 *	but they are stored in the PCB immediately
+	 *	following the aarch64_thread_state.
+	 */							;\
 	mrs	x2, ESR_EL1					;\
 	mrs	x3, FAR_EL1					;\
 	stp	x2, x3, [sp, #(ATS_SIZE)]
 
+
+/*
+ *	Spill caller-saved registers onto the current stack,
+ *	which might be the PCB stack or the kernel stack.
+ */
+
 /* 22 instructions (88 bytes) long */
 #define SAVE_EL1_STATE()					 \
-	/*
-	 *	Spill caller-saved registers onto the current stack,
-	 *	which might be the PCB stack or the kernel stack.
-	 */							;\
 	stp	x0, x1, [sp, #-16]!				;\
 	stp	x2, x3, [sp, #-16]!				;\
 	stp	x4, x5, [sp, #-16]!				;\
@@ -60,7 +91,8 @@
 	stp	x16, x17, [sp, #-16]!				;\
 	stp	x18, x30, [sp, #-16]!				;\
 	/*
-	 *	If we were on the PCB stack, switch to the kernel stack.
+	 *	If we were on the PCB stack,
+	 *	switch to the kernel stack.
 	 */							;\
 	adr	x0, EXT(percpu_array)				;\
 	ldr	x0, [x0, #PERCPU_ACTIVE_STACK]			;\
