@@ -18,6 +18,7 @@
 
 #include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
+#include "aarch64/hwcaps.h"
 #include <device/cons.h>
 #include <device/dtb.h>
 #include <mach/machine.h>
@@ -73,6 +74,22 @@ void machine_idle(int mycpu)
 #endif
 }
 
+void halt_cpu(void)
+{
+#ifdef MACH_HYP
+	hyp_halt();
+#else
+	/* Disable interrupts and WFE forever.  */
+	asm volatile(
+		"msr	DAIFClr, #2\n"
+		"0:\n\t"
+		"wfe\n\t"
+		"b	0b"
+	);
+	__builtin_unreachable();
+#endif
+}
+
 static vm_offset_t heap_start = 0x50000000;
 vm_offset_t pmap_grab_page(void)
 {
@@ -88,6 +105,8 @@ vm_offset_t pmap_grab_page(void)
  */
 void machine_init(void)
 {
+	hwcaps_init();
+
 	spl_init = TRUE;
 }
 

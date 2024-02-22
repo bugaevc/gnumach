@@ -11,7 +11,6 @@ void __disable_irq() {}
 void dump_ss() {}
 void __enable_irq() {}
 void halt_all_cpus() {}
-void halt_cpu() {}
 void intnull() {}
 void pmap_change_wiring() {}
 void pmap_clear_modify() {}

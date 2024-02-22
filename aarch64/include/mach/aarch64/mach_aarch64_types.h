@@ -24,6 +24,7 @@
 #define HWCAPS_COUNT	2
 
 #ifndef __ASSEMBLER__
+#include <stdint.h>
 typedef uint32_t *hwcaps_t;
 #endif
 
