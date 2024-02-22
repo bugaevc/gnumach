@@ -78,7 +78,7 @@
  *	which might be the PCB stack or the kernel stack.
  */
 
-/* 22 instructions (88 bytes) long */
+/* 25 instructions (100 bytes) long */
 #define SAVE_EL1_STATE()					 \
 	stp	x0, x1, [sp, #-16]!				;\
 	stp	x2, x3, [sp, #-16]!				;\
