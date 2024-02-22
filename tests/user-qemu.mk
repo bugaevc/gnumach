@@ -84,6 +84,9 @@ endif
 if HOST_x86_64
 $(eval $(call generate_mig_client,mach/x86_64,mach_i386))
 endif
+if HOST_aarch64
+$(eval $(call generate_mig_client,mach/aarch64,mach_aarch64))
+endif
 
 # NOTE: keep in sync with the rules above
 MIG_GEN_CC = \
@@ -97,8 +100,17 @@ MIG_GEN_CC = \
 	$(MIG_OUTDIR)/mach.user.c \
 	$(MIG_OUTDIR)/mach_host.user.c \
 	$(MIG_OUTDIR)/mach_port.user.c \
-	$(MIG_OUTDIR)/task_notify.server.c \
-	$(MIG_OUTDIR)/mach_i386.user.c
+	$(MIG_OUTDIR)/task_notify.server.c
+
+if HOST_ix86
+MIG_GEN_CC += $(MIG_OUTDIR)/mach_i386.user.c
+endif
+if HOST_x86_64
+MIG_GEN_CC += $(MIG_OUTDIR)/mach_i386.user.c
+endif
+if HOST_aarch64
+MIG_GEN_CC += $(MIG_OUTDIR)/mach_aarch64.user.c
+endif
 
 #
 # compilation of user space tests and utilities
@@ -125,13 +137,22 @@ TESTSRC_TESTLIB= \
 	$(srcdir)/tests/testlib_thread_start.c
 
 SRC_TESTLIB= \
-	$(srcdir)/i386/i386/strings.c \
 	$(srcdir)/kern/printf.c \
 	$(srcdir)/kern/strings.c \
 	$(srcdir)/util/atoi.c \
 	$(TESTSRC_TESTLIB) \
 	$(builddir)/tests/errlist.c \
 	$(MIG_GEN_CC)
+
+if HOST_ix86
+SRC_TESTLIB += $(srcdir)/i386/i386/strings.c
+endif
+if HOST_x86_64
+SRC_TESTLIB += $(srcdir)/i386/i386/strings.c
+endif
+if HOST_aarch64
+SRC_TESTLIB += $(srcdir)/aarch64/aarch64/strings.c
+endif
 
 tests/errlist.c: $(addprefix $(srcdir)/include/mach/,message.h kern_return.h mig_errors.h)
 	mkdir -p tests
