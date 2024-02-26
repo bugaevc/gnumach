@@ -207,6 +207,9 @@ END(thread_syscall_return)
  */
 ENTRY(thread_exception_return)
 ENTRY(thread_bootstrap_return)
+#ifdef __ARM_FEATURE_BTI_DEFAULT
+	bti	c
+#endif
 	SWITCH_TO_PCB_STACK(x1)
 	/* b	return_to_user */
 	/* fallthrough */
@@ -296,7 +299,12 @@ ENTRY(call_continuation)
 	mov	sp, x1			/* point stack to the top */
 	mov	x29, #0			/* dummy frame */
 	mov	x30, #0			/* dummy return */
+#ifdef __ARM_FEATURE_BTI_DEFAULT
+	mov	x16, x0
+	br	x16			/* goto continuation */
+#else
 	br	x0			/* goto continuation */
+#endif
 END(call_continuation)
 
 	.balign 2048

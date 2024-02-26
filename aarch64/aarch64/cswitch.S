@@ -67,5 +67,10 @@ END(Switch_context)
 ENTRY(Thread_continue)
 	mov	x29, #0
 	mov	x30, #0
+#ifdef __ARM_FEATURE_BTI_DEFAULT
+	mov	x16, x19
+	br	x16
+#else
 	br	x19
+#endif
 END(Thread_continue)
