@@ -88,8 +88,10 @@ void trap_sync_exc_el0(void)
 	vm_offset_t	far = pcb->far;
 	int		imm16;
 
+#if 0
 	printf("Sync exc from EL0!\n");
 	printf("ESR: %#lx, FAR: %#lx\n", esr, far);
+#endif
 
 	switch (ESR_EC(esr)) {
 		case ESR_EC_UNK:
@@ -166,22 +168,22 @@ void trap_sync_exc_el1(
 	vm_offset_t				far,
 	struct aarch64_kernel_exception_state	*akes)
 {
-	kern_return_t	kr;
-	struct recovery	*rp;
-	vm_offset_t	recover_base = (vm_offset_t) &recover_table;
+	kern_return_t		kr;
+	const struct recovery	*rp;
+	vm_offset_t		recover_base = (vm_offset_t) &recover_table;
 
+#if 0
 	printf("Sync exc from EL1!\n");
 	printf("ESR: %#lx, FAR: %#lx, PC: %#lx\n", esr, far, akes->pc);
+#endif
 
 	switch (ESR_EC(esr)) {
 		case ESR_EC_DABT_SAME_EL:
 			/* Faulted on an address while in kernelspace.  */
 
 			if (current_task() == kernel_task) {
-				if (far == 0)
-					panic("Kernel segfault at 0x0 (NULL dereference)\n");
-				else if (far <= PAGE_SIZE)
-					panic("Kernel segfault at a low address (NULL dereference?)\n");
+				if (far <= PAGE_SIZE)
+					panic("Kernel segfault at %p (NULL dereference?)\n", (void* ) far);
 				else if (far <= VM_MAX_USER_ADDRESS)
 					panic("Kernel thread accessed user space!\n");
 			}
