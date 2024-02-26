@@ -42,12 +42,24 @@ static inline void cache_flush(void)
  *	and direct-map all physical memory.
  *	Called with mapping off.
  */
-void pmap_bootstrap(void)
+void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 {
 	uintptr_t	scratch1, scratch2;
 	pt_entry_t	*phys_ttbr1_l0_base;
 	pt_entry_t	*phys_ttbr0_l0_base;
 	pt_entry_t	*ttbr0_l0_base;
+	pt_entry_t	kernel_mapping_bti;
+
+	/*
+	 *	When the kernel itself is compiled with BTI
+	 *	(enabled with -mbranch-protection=bti in GCC),
+	 *	enable BTI enforcement for the kernel mapping.
+	 */
+#ifdef __ARM_FEATURE_BTI_DEFAULT
+	kernel_mapping_bti = AARCH64_PTE_BTI;
+#else
+	kernel_mapping_bti = 0;
+#endif
 
 	phys_ttbr0_l0_base = (pt_entry_t*)pmap_grab_page();
 	ttbr0_l0_base = (pt_entry_t*)phystokv(phys_ttbr0_l0_base);
@@ -57,12 +69,12 @@ void pmap_bootstrap(void)
 
 	memset(phys_ttbr0_l0_base, 0, PAGE_SIZE);
 	/* Temporary identity map.  */
-	phys_ttbr0_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr0_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | kernel_mapping_bti | AARCH64_PTE_NON_SH /* ? */;
 
 	/* This would need to be load slide rather than 0 for PIC.  */
 	memset(phys_ttbr1_l0_base, 0, PAGE_SIZE);
-	phys_ttbr1_l0_base[0] = 0x0 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
-	phys_ttbr1_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr1_l0_base[0] = 0x0 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_PXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr1_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | kernel_mapping_bti | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
 
 	/* Attempt to enable the MMU.  */
 	asm volatile(
@@ -72,9 +84,9 @@ void pmap_bootstrap(void)
 		"msr ttbr1_el1, %[ttbr1]\n\t"
 		"msr tcr_el1, %[tcr]\n\t"
 		"isb sy\n\t"
-		/* Enable the MMU bit in sctlr_el1.  */
+		/* Enable the bits in sctlr_el1.  */
 		"mrs %[scratch1], sctlr_el1\n\t"
-		"orr %[scratch1], %[scratch1], #1\n\t"
+		"orr %[scratch1], %[scratch1], %[sctlr]\n\t"
 		"msr sctlr_el1, %[scratch1]\n\t"
 		"dsb st\n\t"
 		"isb sy\n\t"
@@ -87,6 +99,9 @@ void pmap_bootstrap(void)
 		"add %[scratch2], %[scratch2], %[scratch1]\n\t"
 		"br %[scratch2]\n"
 		".here:\n\t"
+#ifdef __ARM_FEATURE_BTI_DEFAULT
+		"bti j\n\t"
+#endif
 		/* Now adjust the saved x29 / x30.  */
 		"ldp %[scratch2], x30, [x29]\n\t"
 		"add %[scratch2], %[scratch2], %[scratch1]\n\t"
@@ -96,6 +111,7 @@ void pmap_bootstrap(void)
 		[scratch1] "=&r"(scratch1),
 		[scratch2] "=&r"(scratch2)
 		:
+		[sctlr] "r"(SCTLR_VALUE),
 		[mair]	"r"(MAIR_VALUE),
 		[ttbr0]	"r"(phys_ttbr0_l0_base),
 		[ttbr1]	"r"(phys_ttbr1_l0_base),
