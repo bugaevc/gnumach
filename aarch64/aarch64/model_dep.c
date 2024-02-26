@@ -24,6 +24,8 @@
 #include <mach/machine.h>
 #include <kern/printf.h>
 #include <kern/startup.h>
+#include <kern/bootstrap.h>
+#include <kern/boot_script.h>
 #include <string.h>
 
 /* Some ELF definitions, for applying relocations.  */
@@ -253,4 +255,54 @@ void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 
 	setup_main();
 	__builtin_unreachable();
+}
+
+void machine_exec_boot_script(void)
+{
+	struct dtb_node 	chosen, node;
+	struct dtb_prop 	prop;
+	struct bootstrap_module	bmod;
+	int			i = 0, err, losers = 0;
+	const char		*args;
+
+	chosen = dtb_node_by_path("/chosen");
+	if (DTB_IS_SENTINEL(chosen))
+		panic("No chosen node in DTB\n");
+
+	dtb_for_each_child (chosen, node) {
+		if (dtb_node_is_compatible(&node, "multiboot,module")) {
+			prop = dtb_node_find_prop(&node, "bootargs");
+			if (DTB_IS_SENTINEL(prop))
+				panic("No bootargs for bootstrap module %d %s\n", i, node.name);
+			args = (const char *) prop.data;
+			printf("module %d: %s\n", i, args);
+			prop = dtb_node_find_prop(&node, "reg");
+			printf("reg:");
+			for (int i = 0; i < prop.length; i++)
+				printf(" %#02.x", *((const unsigned char *) prop.data + i));
+			printf("\n");
+
+			/* FIXME need a proper helper to read reg/cells */
+			bmod.mod_start = __builtin_bswap64(*(const vm_offset_t *) prop.data);
+			bmod.mod_end = bmod.mod_start + __builtin_bswap64(*((const vm_size_t *) prop.data + 1));
+
+			/* FIXME: we probably should make a copy of this string */
+			/* FIXME cannot pass on-stack bmod, it keeps the pointer */
+			err = boot_script_parse_line(&bmod, args);
+			if (err) {
+				printf("Error: %s\n", boot_script_error_string(err));
+				losers++;
+			}
+			i++;
+		}
+	}
+	if (i == 0)
+		panic("No bootstrap modules loaded with Mach\n");
+	if (losers)
+		panic("Failed to parse boot script\n");
+	printf("%d bootstrap modules\n", i);
+	err = boot_script_exec();
+	if (err)
+		panic("Failed to execute boot script: %s\n", boot_script_error_string(err));
+	/* TODO free memory */
 }
