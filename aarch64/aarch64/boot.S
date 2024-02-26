@@ -52,7 +52,7 @@ ENTRY(_start)
 	adr	x1, .boot_stack_end
 	mov	sp, x1
 
-#if 0
+#if 1
         // enable FPU for vector instructions... or should we disable them?
         mrs     x1, cpacr_el1
         mov     x2, #(3 << 20)
