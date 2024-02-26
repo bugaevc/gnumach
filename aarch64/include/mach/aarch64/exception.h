@@ -27,6 +27,9 @@
  *	EXC_BAD_INSTRUCTION
  */
 
+#define EXC_AARCH64_UNK			1	/* unknown reason (unallocated instruction) */
+#define EXC_AARCH64_ILL			2	/* illegal execution state */
+#define EXC_AARCH64_SVC			3	/* SVC that's not a valid syscall */
 
 /*
  *	EXC_ARITHMETIC

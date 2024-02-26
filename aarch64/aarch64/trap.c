@@ -10,6 +10,7 @@
 /* Extract exception class from ESR value.  */
 #define ESR_EC(esr)		(((esr) >> 26) & 0x3f)
 /* Exception classes.  */
+#define ESR_EC_UNK		0x00		/* unknown reason */
 #define ESR_EC_BTI		0x0d		/* BTI failure */
 #define ESR_EC_ILL		0x0e		/* illegal execution state */
 #define ESR_EC_SVC64		0x15		/* SCV (syscall) */
@@ -91,16 +92,18 @@ void trap_sync_exc_el0(void)
 	printf("ESR: %#lx, FAR: %#lx\n", esr, far);
 
 	switch (ESR_EC(esr)) {
+		case ESR_EC_UNK:
+			exception(EXC_BAD_ACCESS, EXC_AARCH64_UNK, far);
 		case ESR_EC_BTI:
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_BTI, far);
 		case ESR_EC_ILL:
-			exception(EXC_BAD_INSTRUCTION, 0, far);
+			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_ILL, far);
 		case ESR_EC_SVC64:
 			imm16 = esr & 0xf;
 			/* "svc #0" is a syscall */
 			if (imm16 == 0 && handle_syscall(&pcb->ats))
 				thread_exception_return();
-			exception(EXC_BAD_INSTRUCTION, 0, 0);
+			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_SVC, 0);
 		case ESR_EC_PAC:
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_PAC, far);
 		case ESR_EC_IABT_LOWER_EL:
@@ -139,7 +142,7 @@ void trap_sync_exc_el0(void)
 			panic("Same EL exception in EL0 handler\n");
 		default:
 			printf("Unhandled exception!\n");
-			exception(EXC_BAD_INSTRUCTION, 0, 0);
+			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_UNK, far);
 	}
 }
 
