@@ -50,6 +50,10 @@ thread_t test_thread_start(task_t task, void(*routine)(void*), void* arg) {
   *(top - 1) = 0;   /* The return address */
 #elif defined(__x86_64__)
   *top = 0;         /* The return address */
+#elif defined(__aarch64__)
+  /* Do nothing.  */
+#else
+#error "Don't know how to pass arguments on this architecture"
 #endif
   ret = vm_write(task, stack + stack_size - vm_page_size, local_stack, vm_page_size);
   ASSERT_RET(ret, "can't initialize the stack for the new thread");
@@ -61,12 +65,9 @@ thread_t test_thread_start(task_t task, void(*routine)(void*), void* arg) {
   ret = thread_create(task, &thread);
   ASSERT_RET(ret, "thread_create()");
 
+#if defined(__i386__) || defined(__x86_64__)
   struct i386_thread_state state;
-  unsigned int count;
-  count = i386_THREAD_STATE_COUNT;
-  ret = thread_get_state(thread, i386_REGS_SEGS_STATE,
-                         (thread_state_t) &state, &count);
-  ASSERT_RET(ret, "thread_get_state()");
+  memset(&state, 0, sizeof(state));
 
 #ifdef __i386__
   state.eip = (long) routine;
@@ -81,6 +82,21 @@ thread_t test_thread_start(task_t task, void(*routine)(void*), void* arg) {
   ret = thread_set_state(thread, i386_REGS_SEGS_STATE,
                          (thread_state_t) &state, i386_THREAD_STATE_COUNT);
   ASSERT_RET(ret, "thread_set_state");
+
+#elif defined(__aarch64__)
+  struct aarch64_thread_state state;
+  memset(&state, 0, sizeof(state));
+
+  state.pc = (long) routine;
+  state.sp = (long) (stack + stack_size);
+  state.x[0] = (long) arg;
+
+  ret = thread_set_state(thread, AARCH64_THREAD_STATE,
+			 (thread_state_t) &state, AARCH64_THREAD_STATE_COUNT);
+  ASSERT_RET(ret, "thread_set_state");
+#else
+#error "Don't know how to pass arguments on this architecture"
+#endif
 
   ret = thread_resume(thread);
   ASSERT_RET(ret, "thread_resume");

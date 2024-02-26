@@ -63,11 +63,22 @@ void test_syscall_bad_arg_on_stack(void *arg)
                "movq	$-25,%rax;"                     \
                "syscall;"                               \
                );
-#else
+#elif defined(__i386__)
   asm volatile("mov	$0x123,%esp;"			\
                "mov	$-25,%eax;"                     \
                "lcall	$0x7,$0x0;"                     \
                );
+#elif defined(__aarch64__)
+  /*
+   *	We can pass up to 8 arguments in registers.
+   *	vm_map() is the only syscall that requires more,
+   *	namely 11.
+   */
+  asm volatile("mov	sp, #0x120\n\t"
+	       "mov	w8, #-64\n\t"	/* vm_map */
+	       "svc	#0");
+#else
+#error "Missing a test for this platform"
 #endif
   FAILURE("we shouldn't be here!");
 }
@@ -82,6 +93,11 @@ void test_bad_syscall_num(void *arg)
   asm volatile("mov	$0x123456,%eax;"                \
                "lcall	$0x7,$0x0;"                     \
                );
+#elif defined(__aarch64__)
+  asm volatile("mov	w8, #0x123456\n\t"
+	       "svc	#0");
+#else
+#error "Missing a test for this platform"
 #endif
   FAILURE("we shouldn't be here!");
 }
@@ -119,7 +135,14 @@ int main(int argc, char *argv[], int envc, char *envp[])
   memset(&last_exc, 0, sizeof(last_exc));
   test_thread_start(mach_task_self(), test_bad_syscall_num, NULL);
   ASSERT_RET(mach_msg_server_once(exc_server, 4096, excp, MACH_MSG_OPTION_NONE), "error in exc server");
-  ASSERT((last_exc.exception == EXC_BAD_INSTRUCTION) && (last_exc.code == EXC_I386_INVOP),
+  ASSERT((last_exc.exception == EXC_BAD_INSTRUCTION)
+#if defined(__i386__) || defined(__aarch64__)
+    && (last_exc.code == EXC_I386_INVOP),
+#elif defined(__aarch64__)
+    && (last_exc.code == EXC_AARCH64_SVC),
+#else
+#error "What exception code should this raise?"
+#endif
          "bad exception for test_bad_syscall_num()");
 
   memset(&last_exc, 0, sizeof(last_exc));
