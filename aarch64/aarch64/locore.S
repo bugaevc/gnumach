@@ -127,6 +127,20 @@
 LEXT(recover_table)
 	.popsection
 
+
+#ifdef notyet
+/* TODO need a way to feature-probe these */
+#define INHIBIT_PAN()						 \
+	.word	0xd500409f		/* msr PAN, #0 */
+
+#define REENABLE_PAN()						 \
+	.word	0xd500419f		/* msr PAN, #1 */
+
+#else
+#define INHIBIT_PAN()
+#define REENABLE_PAN()
+#endif
+
 /*
  *	Copy memory from user's untrusted address into the
  *	kernel's memory. Return 0 for success, 1 for bad
@@ -136,9 +150,10 @@ LEXT(recover_table)
  */
 ENTRY(copyin)
 	cbz	x2, 1f
+	INHIBIT_PAN()
 	mov	x3, #0
 0:
-	RECOVER(2f)
+	RECOVER(3f)
 	ldrb	w4, [x0, x3]
 	strb	w4, [x1, x3]
 	add	x3, x3, #1
@@ -146,28 +161,33 @@ ENTRY(copyin)
 	b.ne	0b
 1:
 	mov	x0, #0
-	ret
 2:
-	mov	x0, #1
+	REENABLE_PAN()
 	ret
+3:
+	mov	x0, #1
+	b	2b
 END(copyin)
 
 ENTRY(copyout)
 	cbz	x2, 1f
+	INHIBIT_PAN()
 	mov	x3, #0
 0:
 	ldrb	w4, [x0, x3]
-	RECOVER(2f)
+	RECOVER(3f)
 	strb	w4, [x1, x3]
 	add	x3, x3, #1
 	cmp	x2, x3
 	b.ne	0b
 1:
 	mov	x0, #0
-	ret
 2:
-	mov	x0, #1
+	REENABLE_PAN()
 	ret
+3:
+	mov	x0, #1
+	b	2b
 END(copyout)
 
 /*
