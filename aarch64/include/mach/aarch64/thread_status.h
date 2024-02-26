@@ -29,19 +29,15 @@ struct aarch64_thread_state {
 	uint64_t tpidr_el0;
 	uint32_t cpsr;
 };
-#define AARCH64_THREAD_STATE_COUNT	(sizeof (struct aarch64_thread_state) / sizeof(unsigned int))
+#define AARCH64_THREAD_STATE_COUNT	(sizeof(struct aarch64_thread_state) / sizeof(unsigned int))
 
 struct aarch64_float_state {
 	__int128 v[32];
 	uint32_t fpsr;
 	uint32_t fpcr;
 };
-#define AARCH64_FLOAT_STATE_COUNT	(sizeof (struct aarch64_float_state) / sizeof(unsigned int))
+#define AARCH64_FLOAT_STATE_COUNT	(sizeof(struct aarch64_float_state) / sizeof(unsigned int))
 
 #define AARCH64_REGS_SEGS_STATE 1
-
-#define i386_REGS_SEGS_STATE 1
-#define i386_THREAD_STATE_COUNT 1
-struct i386_thread_state {int a;};
 
 #endif	/* _MACH_AARHC64_THREAD_STATUS_H_ */

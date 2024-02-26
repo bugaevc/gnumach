@@ -173,3 +173,23 @@ vm_offset_t user_stack_low(vm_size_t stack_size)
 {
 	return (VM_MAX_USER_ADDRESS - stack_size);
 }
+
+
+
+vm_offset_t set_user_regs(
+	vm_offset_t		stack_base,
+	vm_offset_t		stack_size,
+	const struct exec_info	*exec_info,
+	vm_size_t		arg_size)
+{
+	struct aarch64_thread_state	*ats;
+	vm_offset_t			arg_addr;
+
+	ats = USER_REGS(current_thread());
+	arg_addr = stack_base + stack_size - arg_size;;
+
+	ats->pc = exec_info->entry;
+	ats->sp = (rpc_vm_offset_t) arg_addr;
+
+	return arg_addr;
+}
