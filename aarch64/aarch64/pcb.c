@@ -125,6 +125,43 @@ void pcb_collect(__attribute__((unused)) const thread_t thread)
 {
 }
 
+void thread_set_syscall_return(
+	thread_t	thread,
+	kern_return_t	kr)
+{
+	USER_REGS(thread)->x[0] = kr;
+}
+
+kern_return_t thread_getstatus(
+	thread_t	thread,
+	int		flavor,
+	thread_state_t	tstate,
+	unsigned int	*count)
+{
+	switch (flavor) {
+		case THREAD_STATE_FLAVOR_LIST:
+			if (*count < 2)
+				return KERN_INVALID_ARGUMENT;
+			tstate[0] = AARCH64_THREAD_STATE;
+			tstate[1] = AARCH64_FLOAT_STATE;
+			*count = 2;
+			return KERN_SUCCESS;
+
+		case AARCH64_THREAD_STATE:
+			if (*count < AARCH64_THREAD_STATE_COUNT)
+				return KERN_INVALID_ARGUMENT;
+			memcpy(tstate, USER_REGS(thread), sizeof(struct aarch64_thread_state));
+			*count = AARCH64_THREAD_STATE_COUNT;
+			return KERN_SUCCESS;
+
+		case AARCH64_FLOAT_STATE:
+			/* TODO */
+			return KERN_MEMORY_FAILURE;
+		default:
+			return KERN_INVALID_ARGUMENT;
+	}
+}
+
 /*
  * Return preferred address of user stack.
  * Always returns low address.  If stack grows up,

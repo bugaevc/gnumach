@@ -1484,6 +1484,15 @@ kern_return_t thread_set_state(
 		return thread_setstatus(thread, flavor, new_state, new_state_count);
 #endif
 
+#if defined(__aarch64__)
+	if (thread == current_thread()) {
+		ret = thread_setstatus(thread, flavor, new_state, new_state_count);
+		if (flavor == AARCH64_THREAD_STATE && ret == KERN_SUCCESS)
+			thread->pcb->skip_syscall_rv = TRUE;
+		return ret;
+	}
+#endif
+
 	if (thread == THREAD_NULL || thread == current_thread())
 		return KERN_INVALID_ARGUMENT;
 
