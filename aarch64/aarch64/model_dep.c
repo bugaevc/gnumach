@@ -44,7 +44,7 @@ typedef struct
 
 
 
-char *kernel_cmdline;
+const char *kernel_cmdline;
 char /*struct start_info*/ boot_info;
 char irqtab;
 char iunit;
@@ -89,6 +89,16 @@ void halt_cpu(void)
 	__builtin_unreachable();
 #endif
 }
+
+void halt_all_cpus(boolean_t reboot)
+{
+	/* TODO halt _all_ CPUs. */
+	(void) reboot;
+	printf("Shutdown completed successfully, now in tight loop.\n");
+	printf("You can safely power off the system or hit ctl-alt-del to reboot\n");
+	halt_cpu();
+}
+
 
 static vm_offset_t heap_start = 0x50000000;
 vm_offset_t pmap_grab_page(void)
@@ -144,6 +154,59 @@ static void apply_runtime_relocations(void)
 	}
 }
 
+static void print_model(const char *model)
+{
+	const char	*c;
+	const char	*message = "Model name: ";
+	boolean_t	seen_comma = FALSE;
+
+	for (c = message; *c; c++)
+		nommu_putc(*c);
+	for (c = model; *c; c++) {
+		if (!seen_comma && *c == ',') {
+			nommu_putc(' ');
+			seen_comma = TRUE;
+		} else {
+			nommu_putc(*c);
+		}
+	}
+	nommu_putc('\n');
+}
+
+static void initial_dtb_walk(void)
+{
+	struct dtb_node	node;
+	struct dtb_prop	prop;
+
+	node = dtb_root_node();
+	/*
+	 *	Look at root node's properties.
+	 */
+	dtb_for_each_prop (node, prop) {
+		if (!strcmp(prop.name, "model")) {
+			print_model(prop.data);
+		}
+	}
+
+	/*
+	 *	Look at top-level nodes and their props.
+	 */
+	dtb_for_each_child (node, node) {
+		if (!strcmp(node.name, "chosen")) {
+			prop = dtb_node_find_prop(&node, "bootargs");
+			if (!DTB_IS_SENTINEL(prop))
+				kernel_cmdline = (const char *) phystokv(prop.data);
+			continue;
+		}
+		dtb_for_each_prop (node, prop) {
+			if (!strcmp(prop.name, "device_type")) {
+				if (!strcmp(prop.data, "memory"))
+					nommu_putc('!');
+			}
+		}
+	}
+}
+
 void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 {
 	kern_return_t		kr;
@@ -153,15 +216,17 @@ void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 
 	zero_out_bss();
 
-	kr = dtb_load(dtb);
-	assert(kr == KERN_SUCCESS);
-
 	/*
 	 *	Before we do anything else, print the hello message.
 	 */
 	for (c = version; *c; c++)
 		nommu_putc(*c);
 	nommu_putc('\n');
+
+	kr = dtb_load(dtb);
+	assert(kr == KERN_SUCCESS);
+
+	initial_dtb_walk();
 
 	/* FIXME This is specific to -machine virt -m 1G.  */
 	vm_page_load(VM_PAGE_SEG_DMA, 0x40000000, 0x80000000);
@@ -178,7 +243,13 @@ void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 
 	machine_slot[0].is_cpu = TRUE;
 
-	kernel_cmdline = "";
+	if (kernel_cmdline == NULL)
+		kernel_cmdline = "";
+	printf("Kernel command line: %s\n", kernel_cmdline);
+
+	/* Load dtb again, at the new address.  */
+	kr = dtb_load((dtb_t) phystokv(dtb));
+	assert(kr == KERN_SUCCESS);
 
 	setup_main();
 	__builtin_unreachable();

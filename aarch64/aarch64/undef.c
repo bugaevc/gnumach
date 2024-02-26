@@ -10,7 +10,6 @@ void dev_name_list() {}
 void __disable_irq() {}
 void dump_ss() {}
 void __enable_irq() {}
-void halt_all_cpus() {}
 void intnull() {}
 void pmap_change_wiring() {}
 void pmap_clear_modify() {}
@@ -23,16 +22,12 @@ void pmap_is_referenced() {}
 void pmap_map_bd() {}
 void pmap_pageable() {}
 void pmap_page_protect() {}
-void pmap_phys_address() {}
 void pmap_phys_to_frame() {}
 void pmap_remove() {}
 void pmap_resident_count() {}
 void pmap_zero_page() {}
 void q_to_b() {}
 void resettodr() {}
-void set_user_regs() {}
 void startrtclock() {}
-void thread_getstatus() {}
 void thread_setstatus() {}
-void thread_set_syscall_return() {}
 void unmask_irq() {}

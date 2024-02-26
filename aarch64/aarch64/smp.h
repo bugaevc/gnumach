@@ -24,6 +24,6 @@ void smp_remote_ast(unsigned apic_id);
 void smp_pmap_update(unsigned apic_id);
 void smp_startup_cpu(unsigned apic_id, unsigned vector);
 
-void cpu_pause(void);
+#define cpu_pause()	asm volatile("yield" ::: "memory");
 
 #endif /* _AARCH64_SMP_H_ */
