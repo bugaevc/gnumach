@@ -6,6 +6,19 @@
 #include <kern/counters.h>
 #include <string.h>
 
+#define SPSR_M_EL(spsr)		((spsr) & 0xf)
+#define SPSR_M_EL_EL0		0x0		/* EL0 */
+#define SPSR_M_EL_EL1_SP_EL0	0x4		/* EL1 with SP_EL0 */
+#define SPSR_M_EL_EL1_SP_EL1	0x5		/* EL1 with SP_EL1 */
+
+#define SPSR_M_AARCH(spsr)	((spsr) & 0x10)
+#define SPSR_M_AARCH_AARCH64	0x00		/* AArch64 */
+#define SPSR_M_AARCH_AARCH32	0x10		/* AArch32 */
+
+#define SPSR_PAN		0x400000	/* privileged access never */
+#define SPSR_UAO		0x800000	/* user access override */
+
+
 /* Top of active stack (high address).  */
 vm_offset_t	kernel_stack[NCPUS];
 
@@ -162,6 +175,54 @@ kern_return_t thread_getstatus(
 	}
 }
 
+kern_return_t thread_setstatus(
+	thread_t	thread,
+	int		flavor,
+	thread_state_t	tstate,
+	unsigned int	count)
+{
+	struct aarch64_thread_state *ats;
+
+	switch (flavor) {
+		case AARCH64_THREAD_STATE:
+			if (count < AARCH64_THREAD_STATE_COUNT)
+				return KERN_INVALID_ARGUMENT;
+			if (((vm_offset_t) tstate) % alignof(struct aarch64_thread_state))
+				return KERN_INVALID_ARGUMENT;
+			ats = (struct aarch64_thread_state *) tstate;
+
+			/*
+			 *	Make sure the PSR indicates a valid state,
+			 *	specifically EL0 AArch64.
+			 *
+			 *	Note that both SPSR_M_EL_EL0 and
+			 *	SPSR_M_AARCH_AARCH64 have a zero bit pattern,
+			 *	so just initializing ats->cpsr to 0 should
+			 *	pass the checks successfully.
+			 */
+			if (SPSR_M_EL(ats->cpsr) != SPSR_M_EL_EL0)
+				return KERN_INVALID_ARGUMENT;
+			if (SPSR_M_AARCH(ats->cpsr) != SPSR_M_AARCH_AARCH64)
+				return KERN_INVALID_ARGUMENT;
+			if (ats->cpsr & SPSR_UAO)
+				return KERN_INVALID_ARGUMENT;
+
+			/* TODO: DAIF; should probably mask in the right value
+			   instead of requiring the caller to supply it */
+			ats->cpsr |= SPSR_PAN;
+			/* TODO: audit all the other bits */
+
+			memcpy(USER_REGS(thread), ats, sizeof(struct aarch64_thread_state));
+			return KERN_SUCCESS;
+
+		case AARCH64_FLOAT_STATE:
+			/* TODO */
+			return KERN_MEMORY_FAILURE;
+		default:
+			return KERN_INVALID_ARGUMENT;
+	}
+}
+
 /*
  * Return preferred address of user stack.
  * Always returns low address.  If stack grows up,
@@ -185,9 +246,11 @@ vm_offset_t set_user_regs(
 	struct aarch64_thread_state	*ats;
 	vm_offset_t			arg_addr;
 
-	ats = USER_REGS(current_thread());
-	arg_addr = stack_base + stack_size - arg_size;;
+	arg_size = P2ROUND(arg_size, 16);
+	arg_addr = stack_base + stack_size - arg_size;
+	assert(P2ALIGNED(stack_base, 16));
 
+	ats = USER_REGS(current_thread());
 	ats->pc = exec_info->entry;
 	ats->sp = (rpc_vm_offset_t) arg_addr;
 

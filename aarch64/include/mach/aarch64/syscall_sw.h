@@ -23,6 +23,7 @@
 
 #define kernel_trap(trap_name,trap_number,number_args)  \
 ENTRY(trap_name)  \
+	MACH_BTI_C; \
 	mov w8, #(trap_number);  \
 	SVC;  \
 	ret;  \

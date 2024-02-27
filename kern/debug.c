@@ -95,6 +95,10 @@ void SoftDebugger(const char *message)
 #if defined(__i386__) || defined(__x86_64__)
 	asm("int3");
 #endif
+
+#if defined(__aarch64__)
+	asm volatile("bkpt");
+#endif
 }
 
 void Debugger(const char *message)

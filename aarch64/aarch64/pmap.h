@@ -115,7 +115,7 @@ extern void load_ttbr0(pmap_t p);
 #define PMAP_ACTIVATE_USER(pmap, th, my_cpu) ((void)th,(void)my_cpu,load_ttbr0(pmap))
 #define PMAP_DEACTIVATE_USER(pmap, th, my_cpu)
 
-#define pmap_resident_count(pmap) 123456
+#define pmap_resident_count(pmap)	((pmap)->stats.resident_count)
 
 #define pmap_kernel()                   (kernel_pmap)
 #define pmap_phys_address(frame)	(frame)

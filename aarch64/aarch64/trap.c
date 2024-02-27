@@ -135,7 +135,8 @@ void trap_sync_exc_el0(void)
 		case ESR_EC_DABT_SAME_EL:
 			panic("Same EL exception in EL0 handler\n");
 		case ESR_EC_AL_SP:
-			exception(EXC_BAD_ACCESS, EXC_AARCH64_AL_SP, far);
+			/* Doesn't write to FAR.  */
+			exception(EXC_BAD_ACCESS, EXC_AARCH64_AL_SP, pcb->ats.sp);
 		case ESR_EC_SERROR:
 			panic("SError in sync exc handler\n");
 		case ESR_EC_BRK_LOWER_EL:
@@ -201,6 +202,18 @@ void trap_sync_exc_el1(
 			for (rp = recover_table; rp < recover_table_end; rp++) {
 				if ((vm_offset_t) akes->pc == recover_base + rp->fault_addr_off) {
 					akes->pc = recover_base + rp->recover_addr_off;
+					/*
+					 *	Set things up for an appropriate exception() call,
+					 *	if that's what the handler wants to do.
+					 *	The last few entries in akes->regs are:
+					 *	[16] = x2
+					 *	[17] = x3
+					 *	[18] = x0
+					 *	[19] = x1
+					 */
+					akes->regs[18] = (long) EXC_BAD_ACCESS;
+					akes->regs[19] = (long) kr;
+					akes->regs[16] = (long) far;
 					return;
 				}
 			}

@@ -190,6 +190,9 @@ pmap_t pmap_create(vm_size_t size)
 	p->ref_count = 1;
 	simple_lock_init(&p->lock);
 
+	p->stats.resident_count = 0;
+	p->stats.wired_count = 0;
+
 	return p;
 }
 
@@ -257,14 +260,14 @@ static kern_return_t pmap_walk(
 	boolean_t	last_level;
 	pt_entry_t	*next_table;
 
-	if (pmap_debug) printf("pmap_walk(table = %p, v = %#016.x, sb = %d)\n", table, (unsigned long long) v, significant_bits);
+	if (pmap_debug) printf("pmap_walk(table = %p, v = %#016.llx, sb = %d)\n", table, (unsigned long long) v, significant_bits);
 
 	assert(significant_bits > PAGE_SHIFT);
 	next_sb = (significant_bits - PAGE_SHIFT - 1) / BITS_PER_LEVEL * BITS_PER_LEVEL + PAGE_SHIFT;
 	last_level = (next_sb == PAGE_SHIFT);
 
 	index = (v >> next_sb) & ((1 << (significant_bits - next_sb)) - 1);
-	if (pmap_debug) printf("index = %d\n", index);
+	if (pmap_debug) printf("index = %ld\n", index);
 	assert(index < PAGE_SIZE / sizeof(pt_entry_t));
 	entry = table[index];
 	if (!(entry & AARCH64_PTE_VALID)) {
@@ -340,20 +343,24 @@ void pmap_enter(
 {
 	kern_return_t	kr;
 	pt_entry_t	*entry;
+	boolean_t	was_present;
 
 	assert(pmap != NULL);
 	assert(pa != vm_page_fictitious_addr);
-	if (pmap_debug) printf("pmap_enter(%#016.x, %#llx)\n", v, (unsigned long long) pa);
+	if (pmap_debug) printf("pmap_enter(%#016.lx, %#llx)\n", v, (unsigned long long) pa);
 
 	if (pmap == kernel_pmap && (v < kernel_virtual_start || v >= kernel_virtual_end))
-		panic("pmap_enter(%#016.x, %#llx) falls in physical memory area!\n", (unsigned long) v, (unsigned long long) pa);
+		panic("pmap_enter(%#016.lx, %#llx) falls in physical memory area!\n", (unsigned long) v, (unsigned long long) pa);
 
 	if (pmap != kernel_pmap && v >= kernel_virtual_start)
-		panic("pmap_enter(%#016.x, %#llx) for a non-kernel pmap?\n", (unsigned long) v, (unsigned long long) pa);
+		panic("pmap_enter(%#016.lx, %#llx) for a non-kernel pmap?\n", (unsigned long) v, (unsigned long long) pa);
 
 	kr = pmap_walk(pmap, pmap_table(pmap, v), v, 36, TRUE, prot, &entry);
 	assert(kr == KERN_SUCCESS);
+	was_present = ((*entry) & AARCH64_PTE_ADDR_MASK) != 0;
 	*entry = ((*entry) & ~AARCH64_PTE_ADDR_MASK) | (pt_entry_t)pa;
+	if (!was_present)
+		pmap->stats.resident_count++;
 	cache_flush();
 }
 
@@ -393,6 +400,9 @@ void pmap_protect(
 	/* TODO: don't pmap_walk() each iteration */
 	for (v = sva; v != eva; v += PAGE_SIZE) {
 		kr = pmap_walk(pmap, table, v, 36, FALSE, VM_PROT_NONE, &entry);
+		/* Skip non-existent physical pages.  */
+		if (kr == KERN_INVALID_ADDRESS)
+			continue;
 		assert(kr == KERN_SUCCESS);
 		*entry = ((*entry) & ~AARCH64_PTE_PROT_MASK) | pmap_prot(v, prot);
 	}

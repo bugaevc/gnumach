@@ -22,12 +22,9 @@ void pmap_is_referenced() {}
 void pmap_map_bd() {}
 void pmap_pageable() {}
 void pmap_page_protect() {}
-void pmap_phys_to_frame() {}
 void pmap_remove() {}
-void pmap_resident_count() {}
 void pmap_zero_page() {}
 void q_to_b() {}
 void resettodr() {}
 void startrtclock() {}
-void thread_setstatus() {}
 void unmask_irq() {}

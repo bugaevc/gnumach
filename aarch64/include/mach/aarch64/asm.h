@@ -30,4 +30,10 @@
 #define ENTRY(x)	.globl EXT(x); .type EXT(x), @function; .p2align TEXT_ALIGN; LEXT(x)
 #define END(x)		.size x,.-x
 
+#ifdef __ARM_FEATURE_BTI_DEFAULT
+#define MACH_BTI_C	bti c
+#else
+#define MACH_BTI_C
+#endif
+
 #endif /* _MACH_AARCH64_ASM_H_ */

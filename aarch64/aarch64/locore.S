@@ -197,7 +197,13 @@ END(copyout)
  */
 ENTRY(thread_syscall_return)
 	SWITCH_TO_PCB_STACK(x1)
+	ldrb	w1, [sp, #(ATS_SKIP_SYSCALL_RV)]
+	tbnz	w1, 0, 0f
 	str	x0, [sp, #(ATS_X)]
+	b	return_to_user
+0:
+	mov	w1, #0
+	strb	w1, [sp, #(ATS_SKIP_SYSCALL_RV)]
 	b	return_to_user
 END(thread_syscall_return)
 
@@ -439,7 +445,7 @@ ENTRY(handle_syscall)
 	ldr	x13, [x12, #(ATS_SP)]
 	add	x13, x13, x0
 0:
-	RECOVER(.bad_syscall)
+	RECOVER(.bad_stack_args)
 	ldp	x0, x1, [x13, #-16]!
 	stp	x0, x1, [sp, #-16]!
 	cmp	x10, #2
@@ -449,6 +455,16 @@ ENTRY(handle_syscall)
 .bad_syscall:
 	mov	w0, #0				/* return FALSE */
 	b	.out
+.bad_stack_args:
+	/*
+	 *	We were loading arguments from user's stack,
+	 *	but faulted.  Restore our SP, and treat it
+	 *	as a fault from EL0.  x0, x1, x2 already hold
+	 *	appropriate values for the exception() call.
+	 */
+	mov	sp, x29
+	ldp	x29, x30, [sp], #32
+	b	EXT(exception)
 END(handle_syscall)
 
 	.pushsection .rodata, 2
