@@ -21,6 +21,7 @@
 
 #include <mach/std_types.h>
 #include <device/dtb.h>
+#include "aarch64/arm-timer.h"	/* startrtclock() */
 
 /*
  * Find devices.  The system is alive.
@@ -31,8 +32,6 @@ extern void machine_init (void);
 extern void machine_idle (int cpu);
 
 extern void resettodr (void);
-
-extern void startrtclock (void);
 
 /*
  * Halt a cpu.

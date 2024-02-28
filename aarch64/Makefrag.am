@@ -28,6 +28,8 @@ if HOST_aarch64
 #
 
 libkernel_a_SOURCES += \
+	aarch64/aarch64/arm-timer.h \
+	aarch64/aarch64/arm-timer.c \
         aarch64/aarch64/ast.h \
         aarch64/aarch64/boot.S \
         aarch64/aarch64/cpu_number.h \

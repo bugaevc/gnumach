@@ -83,7 +83,7 @@ void halt_cpu(void)
 #else
 	/* Disable interrupts and WFE forever.  */
 	asm volatile(
-		"msr	DAIFClr, #2\n"
+		"msr	DAIFSet, #3\n"
 		"0:\n\t"
 		"wfe\n\t"
 		"b	0b"
@@ -119,6 +119,14 @@ void machine_init(void)
 {
 	hwcaps_init();
 
+	/* FIXME unhardcode */
+	*(volatile uint32_t *) phystokv(0x8000000) = 1;
+	*(volatile uint32_t *) phystokv(0x8010000) = 1;
+	*(volatile uint32_t *) phystokv(0x8010004) = 0xff;
+	*(volatile uint32_t *) phystokv(0x8010008) = 0;
+	*(volatile uint32_t *) phystokv(0x8000100) = 1 << 30;
+
+	spl7();
 	spl_init = TRUE;
 }
 

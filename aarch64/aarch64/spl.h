@@ -62,10 +62,12 @@ extern spl_t	(splsched)(void);
 extern spl_t	(splhigh)(void);
 
 extern spl_t	(splx)(spl_t n);
-extern spl_t	(splx_cli)(spl_t n);
 
 extern void setsoftclock (void);
 extern int spl_init;
+
+extern spl_t	(spl7_irq)(void);
+extern void	(splx_irq)(spl_t n);
 
 #include <aarch64/ipl.h>
 

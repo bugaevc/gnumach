@@ -26,5 +26,4 @@ void pmap_remove() {}
 void pmap_zero_page() {}
 void q_to_b() {}
 void resettodr() {}
-void startrtclock() {}
 void unmask_irq() {}

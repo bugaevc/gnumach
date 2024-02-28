@@ -49,6 +49,7 @@ struct percpu {
     struct processor	processor;
     thread_t		active_thread;
     vm_offset_t		active_stack;
+    spl_t		curr_ipl;
 /*
     struct machine_slot	machine_slot;
     struct mp_desc_table mp_desc_table;
@@ -58,7 +59,6 @@ struct percpu {
     ipc_kmsg_t		ipc_kmsg_cache;
     pmap_update_list	cpu_update_list;
     spl_t		saved_ipl;
-    spl_t		curr_ipl;
     timer_data_t	kernel_timer;
     timer_t		current_timer;
     unsigned long	in_interrupt;

@@ -1,13 +1,8 @@
 #include <mach/machine/asm.h>
+#include "aarch64/aarch64asm.h"
 #include "aarch64/ipl.h"
 
-/* This should be per CPU... */
 .bss
-.type EXT(curr_ipl), @object
-LEXT(curr_ipl)
-	.space 1
-END(curr_ipl)
-
 .type EXT(softclkpending), @object
 LEXT(softclkpending)
 	.space 1
@@ -30,12 +25,26 @@ ENTRY(spl0)
 	bl	EXT(softclock)
 	ldp	x29, x30, [sp], 32
 .do_enable:
-	msr	DAIFSet, #2
-	adr	x1, EXT(curr_ipl)
-	ldrb	w0, [x1]
-	strb	wzr, [x1]
+	adr	x1, EXT(percpu_array)
+	ldr	w0, [x1, #PERCPU_CURR_IPL]
+	cbz	w0, 1f
+
+	msr	DAIFClr, #3
+	isb
+
+	str	wzr, [x1, #PERCPU_CURR_IPL]
+1:
 	ret
 END(spl0)
+
+/*
+ *	Enable or disable interrupts, depending on the argument.
+ */
+ENTRY(splx)
+	cbz	x0, EXT(spl0)
+	/* b	EXT(spl7) */
+	/* fallthrough */
+END(splx)
 
 /*
  *	Disable interrupts.
@@ -59,19 +68,17 @@ ENTRY(splsched)
 ENTRY(splhigh)
 ENTRY(splhi)
 ENTRY(spl7)
-	msr	DAIFClr, #2
-	adr	x1, EXT(curr_ipl)
-	ldrb	w0, [x1]
+	adr	x1, EXT(percpu_array)
+	ldr	w0, [x1, #PERCPU_CURR_IPL]
+	cmp	w0, #SPL7
+	b.eq	1f
+
+	msr	DAIFSet, #3
 	mov	w2, #SPL7
-	strb	w2, [x1]
+	str	w2, [x1, #PERCPU_CURR_IPL]
+1:
 	ret
 END(spl7)
-
-ENTRY(splx)
-	cmp	x0, #0
-	beq	EXT(spl0)
-	b	EXT(spl7)
-END(splx)
 
 /*
  *	Remember to run sofclock at next spl0().
@@ -82,3 +89,32 @@ ENTRY(setsoftclock)
 	strb	w1, [x0]
 	ret
 END(setsoftclock)
+
+ENTRY(spl7_irq)
+	adr	x1, EXT(percpu_array)
+	ldr	w0, [x1, #PERCPU_CURR_IPL]
+	mov	w2, #SPL7
+	str	w2, [x1, #PERCPU_CURR_IPL]
+	ret
+END(spl7_irq)
+
+/*
+ *	Called at SPL7. We're about to return from
+ *	an IRQ to code that runs with the given SPL.
+ */
+ENTRY(splx_irq)
+	cbnz	w0, 1f
+	adr	x2, EXT(softclkpending)
+	ldrb	w1, [x2]
+	tbz	w1, 0, 1f
+	strb	wzr, [x2]
+	stp	x29, x30, [sp, -32]!
+	mov	x29, sp
+	bl	EXT(softclock)
+	ldp	x29, x30, [sp], 32
+	mov	x0, xzr
+1:
+	adr	x1, EXT(percpu_array)
+	str	w0, [x1, #PERCPU_CURR_IPL]
+	ret
+END(splx_irq)
