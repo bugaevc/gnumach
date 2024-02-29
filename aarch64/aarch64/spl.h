@@ -67,7 +67,7 @@ extern void setsoftclock (void);
 extern int spl_init;
 
 extern spl_t	(spl7_irq)(void);
-extern void	(splx_irq)(spl_t n);
+extern void	(spl0_irq)(void);
 
 #include <aarch64/ipl.h>
 

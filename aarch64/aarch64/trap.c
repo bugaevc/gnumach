@@ -72,16 +72,17 @@ void trap_aarch32(void)
 void trap_irq_el0(void)
 {
 	int s = spl7_irq();
+	assert(s == SPL0);
 
 	if ((*(volatile uint32_t *) phystokv(0x8000280)) & (1 << 30)) {
 		printf(",");
-		cnt_clock_interrupt(FALSE, 0);
+		cnt_clock_interrupt(TRUE, current_thread()->pcb->ats.pc);
 		*(volatile uint32_t *) phystokv(0x8000280) = 1 << 30;
 	} else {
 		printf("Another IRQ?\n");
 	}
 
-	splx_irq(s);
+	spl0_irq();
 
 	thread_exception_return();
 }
@@ -168,6 +169,7 @@ void trap_serror_el0(void)
 void trap_irq_el1(void)
 {
 	int s = spl7_irq();
+	assert(s == SPL0);
 
 	// printf("Got IRQ while in EL1, assuming it's timer\n");
 	if ((*(volatile uint32_t *) phystokv(0x8000280)) & (1 << 30)) {
@@ -178,7 +180,7 @@ void trap_irq_el1(void)
 		printf("Another IRQ?\n");
 	}
 
-	splx_irq(s);
+	spl0_irq();
 }
 
 void trap_fiq_el1(void)

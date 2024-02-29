@@ -38,6 +38,7 @@ void stack_attach(
 	counter(if (++c_stacks_current > c_stacks_max)
 		c_stacks_max = c_stacks_current);
 
+	assert(thread->kernel_stack == 0);
 	thread->kernel_stack = stack;
 	STACK_AKS_REG(stack, 30) = (long) Thread_continue;
 	STACK_AKS_REG(stack, 19) = (long) continuation;
@@ -75,6 +76,7 @@ void stack_handoff(
 		PMAP_ACTIVATE_USER(vm_map_pmap(new_task->map), new, mycpu);
 	}
 
+	assert(new->kernel_stack == 0);
 	stack = current_stack();
 	old->kernel_stack = 0;
 	new->kernel_stack = stack;

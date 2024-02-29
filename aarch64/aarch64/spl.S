@@ -29,10 +29,10 @@ ENTRY(spl0)
 	ldr	w0, [x1, #PERCPU_CURR_IPL]
 	cbz	w0, 1f
 
+	str	wzr, [x1, #PERCPU_CURR_IPL]
 	msr	DAIFClr, #3
 	isb
 
-	str	wzr, [x1, #PERCPU_CURR_IPL]
 1:
 	ret
 END(spl0)
@@ -100,10 +100,9 @@ END(spl7_irq)
 
 /*
  *	Called at SPL7. We're about to return from
- *	an IRQ to code that runs with the given SPL.
+ *	an IRQ to code that runs at SPL0.
  */
-ENTRY(splx_irq)
-	cbnz	w0, 1f
+ENTRY(spl0_irq)
 	adr	x2, EXT(softclkpending)
 	ldrb	w1, [x2]
 	tbz	w1, 0, 1f
@@ -112,11 +111,10 @@ ENTRY(splx_irq)
 	mov	x29, sp
 	bl	EXT(softclock)
 	ldp	x29, x30, [sp], 32
-	mov	x0, xzr
 1:
 	adr	x1, EXT(percpu_array)
-	str	w0, [x1, #PERCPU_CURR_IPL]
+	str	wzr, [x1, #PERCPU_CURR_IPL]
 	ret
-END(splx_irq)
+END(spl0_irq)
 
 	.section .note.GNU-stack,"",%progbits
