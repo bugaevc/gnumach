@@ -1,0 +1,62 @@
+GNU Mach on AArch64 follows the Linux AArch64 boot protocol, documented at
+https://docs.kernel.org/arch/arm64/booting.html (or
+Documentation/arch/arm64/booting.rst in the Linux source tree).  A device tree
+blob is required to boot.
+
+Initial development is happening against QEMU's "virt" machine.  It should be
+possible to boot GNU Mach on QEMU like this:
+
+$ qemu-system-aarch64 -machine virt -cpu cortex-a53 -m 1G -nographic \
+	-kernel ./gnumach -append "gnumach cmdline goes here"
+
+To run any code in userland, you need to load some bootstrap modules along with
+the kernel (for a GNU/Hurd system, this would be at least ext2fs and the exec
+server).  GNU Mach on x86 has traditionally used Multiboot modules for this,
+but there's no Multiboot on AArch64.
+
+So on AArch64, GNU Mach instead expects the bootstrap modules to be described
+in the Xen-compatible format in the device tree, as documented at
+docs/misc/arm/device-tree/booting.txt in the Xen source tree.  Specifically,
+each bootstrap module should be described by a child node of the "/chosen" node
+which has "compatible" set to "multiboot,module", and "bootargs" to the
+corresponding line of the Mach boot script. For example:
+
+chosen {
+    bootargs = "gnumach cmdline goes here";
+    stdout-path = "/pl011@9000000";
+    #address-cells = <0x2>;
+    #size-cells = <0x2>;
+
+    module@0x4000 {
+        compatible = "multiboot,kernel", "multiboot,module";
+        reg = <0x0 0x4000 0x0 0x76670>;
+        bootargs = "example --host-priv-port=${host-port} --device-master-port=${device-port} $(task-create) $(task-resume)";
+    };
+
+    /* More modules... */
+}
+
+This (or close enough to this) is also the format that QEMU's guest-loader
+device implements, which makes it possible to boot GNU Mach with bootstrap
+modules using QEMU invocations like this:
+
+$ qemu-system-aarch64 -machine virt -cpu cortex-a53 -m 1G -nographic \
+	-kernel ./gnumach -append "gnumach cmdline goes here" \
+	-device guest-loader,addr=0x4000,kernel=./example,bootargs='example --host-priv-port=${host-port} --device-master-port=${device-port} $(task-create) $(task-resume)'
+
+Note that you have to explicitly specify a physical memory address to load the
+module at, and use the "kernel=" syntax instead of the more natural "initrd=",
+since a module loaded using the "initrd=" syntax cannot have bootargs, which
+are required for GNU Mach bootstrap modules.
+
+Something like the following should give you the required format with Das
+U-Boot, but note this hasn't been tested at all yet:
+
+fdt set /chosen \#address-cells <2>
+fdt set /chosen \#size-cells <2>
+fdt mknod /chosen module@0x4000
+fdt set /chosen/module@0x4000 compatible "multiboot,kernel", "multiboot,module"
+fdt set /chosen/module@0x4000 reg <... ...>
+fdt set /chosen/module@0x4000 bootargs "..."
+
+booti ${gnumach_addr} - ${fdt_addr}
