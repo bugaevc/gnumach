@@ -472,3 +472,5 @@ END(recover_table)
 	.global EXT(recover_table_end)
 LEXT(recover_table_end)
 	.popsection
+
+	.section .note.GNU-stack,"",%progbits

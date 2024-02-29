@@ -67,3 +67,5 @@ END(_start)
 .boot_stack:
 	.space	4096
 .boot_stack_end:
+
+	.section .note.GNU-stack,"",%progbits

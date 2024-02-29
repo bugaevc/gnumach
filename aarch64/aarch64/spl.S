@@ -118,3 +118,5 @@ ENTRY(splx_irq)
 	str	w0, [x1, #PERCPU_CURR_IPL]
 	ret
 END(splx_irq)
+
+	.section .note.GNU-stack,"",%progbits

@@ -74,3 +74,5 @@ ENTRY(Thread_continue)
 	br	x19
 #endif
 END(Thread_continue)
+
+	.section .note.GNU-stack,"",%progbits
