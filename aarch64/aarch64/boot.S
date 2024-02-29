@@ -24,7 +24,7 @@
 	b	EXT(_start)
 	nop
 	.dword	0				/* ??? */
-	.dword	EXT(_image_size)
+	.dword	EXT(_image_end) - .boot_header
 	.dword	1
 	.dword	0
 	.dword	0

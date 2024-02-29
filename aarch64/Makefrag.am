@@ -28,8 +28,6 @@ if HOST_aarch64
 #
 
 libkernel_a_SOURCES += \
-	aarch64/aarch64/arm-timer.h \
-	aarch64/aarch64/arm-timer.c \
         aarch64/aarch64/ast.h \
         aarch64/aarch64/boot.S \
         aarch64/aarch64/cpu_number.h \
@@ -55,8 +53,15 @@ libkernel_a_SOURCES += \
 	aarch64/aarch64/vm_param.h \
 	aarch64/aarch64/model_dep.c \
 	aarch64/aarch64/undef.c \
+	aarch64/arm/gic-v2.h \
+	aarch64/arm/gic-v2.c \
+	aarch64/arm/pl011.h \
+	aarch64/arm/pl011.c \
+	aarch64/arm/timer.h \
+	aarch64/arm/timer.c \
 	device/dtb.h \
-	device/dtb.c
+	device/dtb.c \
+	device/cirbuf.c
 
 
 #

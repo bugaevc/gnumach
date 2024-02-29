@@ -122,6 +122,8 @@ extern void load_ttbr0(pmap_t p);
 #define pmap_phys_to_frame(phys)        1234
 #define pmap_copy(dst_pmap,src_pmap,dst_addr,len,src_addr)
 
+struct dtb_node;
+extern void pmap_discover_physical_memory(const struct dtb_node *node);
 extern void pmap_bootstrap(void);
 extern void pmap_bootstrap_misc(void);
 

@@ -32,6 +32,7 @@ struct dtb_header {
 typedef const struct dtb_header *dtb_t;
 
 extern kern_return_t dtb_load(dtb_t dtb);
+extern void dtb_get_location(dtb_t *out_dtb, vm_size_t *out_dtb_size);
 
 struct dtb_node {
 	vm_offset_t	offset;

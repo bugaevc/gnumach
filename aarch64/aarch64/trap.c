@@ -1,6 +1,7 @@
 #include "machine/trap.h"
 #include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
+#include "arm/gic-v2.h"		/* FIXME */
 #include <mach/exception.h>
 #include <vm/vm_fault.h>
 #include <kern/printf.h>
@@ -74,10 +75,10 @@ void trap_irq_el0(void)
 	int s = spl7_irq();
 	assert(s == SPL0);
 
-	if ((*(volatile uint32_t *) phystokv(0x8000280)) & (1 << 30)) {
+	if (gic_v2_check_irq(30)) {
 		printf(",");
 		cnt_clock_interrupt(TRUE, current_thread()->pcb->ats.pc);
-		*(volatile uint32_t *) phystokv(0x8000280) = 1 << 30;
+		gic_v2_clear_irq(30);
 	} else {
 		printf("Another IRQ?\n");
 	}
@@ -171,11 +172,10 @@ void trap_irq_el1(void)
 	int s = spl7_irq();
 	assert(s == SPL0);
 
-	// printf("Got IRQ while in EL1, assuming it's timer\n");
-	if ((*(volatile uint32_t *) phystokv(0x8000280)) & (1 << 30)) {
+	if (gic_v2_check_irq(30)) {
 		printf(".");
 		cnt_clock_interrupt(FALSE, 0);
-		*(volatile uint32_t *) phystokv(0x8000280) = 1 << 30;
+		gic_v2_clear_irq(30);
 	} else {
 		printf("Another IRQ?\n");
 	}

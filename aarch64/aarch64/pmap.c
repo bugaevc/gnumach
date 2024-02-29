@@ -4,6 +4,7 @@
 #include <vm/vm_page.h>
 #include <kern/slab.h>
 #include <kern/printf.h>
+#include <device/dtb.h>
 #include <string.h>
 
 static boolean_t	pmap_debug = FALSE;
@@ -21,8 +22,17 @@ static struct kmem_cache table_cache;
  *	Does not include the virtual addresses used to map physical memory 1-1.
  *	Initialized by pmap_bootstrap.
  */
-vm_offset_t	kernel_virtual_start;
-vm_offset_t	kernel_virtual_end;
+vm_offset_t		kernel_virtual_start;
+vm_offset_t		kernel_virtual_end;
+
+/*
+ *	The (single largest) region of physical memory.
+ */
+static phys_addr_t	phys_mem_start;
+static vm_size_t	phys_mem_size;
+
+extern const void	__text_start;
+extern const void	_image_end;
 
 /*
  * Two slots for temporary physical page mapping, to allow for
@@ -31,9 +41,88 @@ vm_offset_t	kernel_virtual_end;
 // static pmap_mapwindow_t mapwindows[PMAP_NMAPWINDOWS * NCPUS];
 #define MAPWINDOW_SIZE (PMAP_NMAPWINDOWS * NCPUS * PAGE_SIZE)
 
+/*
+ *	Early physical memory heap.
+ */
+static vm_offset_t heap_start;
+
+vm_offset_t pmap_grab_page(void)
+{
+	vm_offset_t res = heap_start;
+
+	heap_start += PAGE_SIZE;
+
+	return res;
+}
+
+static void __attribute__((noinline)) pmap_ungrab_page(vm_offset_t page)
+{
+	if (page + PAGE_SIZE == heap_start)
+		heap_start = page;
+}
+
+
 static inline void cache_flush(void)
 {
 	asm volatile("dsb st\n\tisb sy" ::: "memory");
+}
+
+void pmap_discover_physical_memory(const struct dtb_node *node)
+{
+	struct dtb_prop	prop;
+	dtb_t		dtb;
+	phys_addr_t	start, kernel_start;
+	vm_size_t	size, dtb_size;
+	vm_size_t	off = 0;
+
+	prop = dtb_node_find_prop(node, "reg");
+	assert(!DTB_IS_SENTINEL(prop));
+
+	/*
+	 *	TODO: We currently only consider a single largest
+	 *	region of memory.  It appears to be a limitation
+	 *	of the vm_page module, it can only handle a single
+	 *	region at the given "seg_index", of which there are
+	 *	only 4?
+	 */
+
+	while (off < prop.length) {
+		start = dtb_prop_read_cells(&prop,
+			node->address_cells,
+			off);
+		off += node->address_cells * 4;
+		size = dtb_prop_read_cells(&prop,
+			node->size_cells,
+			off);
+		off += node->size_cells * 4;
+
+		if (size > phys_mem_size) {
+			phys_mem_start = start;
+			phys_mem_size = size;
+		}
+	}
+
+	assert(phys_mem_size > 0);
+	/* TODO: is VM_PAGE_SEG_DMA appropriate here? */
+	vm_page_load(VM_PAGE_SEG_DMA,
+		phys_mem_start,
+		phys_mem_start + phys_mem_size);
+
+	/*
+	 *	If the kernel itself or the DTB is loaded in
+	 *	this region of memory, exclude them form the heap.
+	 */
+	kernel_start = (phys_addr_t) &__text_start;
+	heap_start = phys_mem_start;
+	if (kernel_start >= heap_start
+	    && kernel_start < phys_mem_start + phys_mem_size) {
+		heap_start = round_page((phys_addr_t) &_image_end);
+	}
+	dtb_get_location(&dtb, &dtb_size);
+	if ((phys_addr_t) dtb >= heap_start
+	    && (phys_addr_t) dtb < phys_mem_start + phys_mem_size) {
+		heap_start = round_page(((phys_addr_t) dtb) + dtb_size);
+	}
 }
 
 /*
@@ -44,6 +133,8 @@ static inline void cache_flush(void)
  */
 void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 {
+	phys_addr_t	kernel_gb;
+	unsigned long	kernel_gb_index;
 	uintptr_t	scratch1, scratch2;
 	pt_entry_t	*phys_ttbr1_l0_base;
 	pt_entry_t	*phys_ttbr0_l0_base;
@@ -61,20 +152,48 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	kernel_mapping_bti = 0;
 #endif
 
-	phys_ttbr0_l0_base = (pt_entry_t*)pmap_grab_page();
-	ttbr0_l0_base = (pt_entry_t*)phystokv(phys_ttbr0_l0_base);
+	kernel_gb = ((phys_addr_t) &__text_start) & 0xffffffffc0000000;
+	kernel_gb_index = kernel_gb >> 30;
 
 	phys_ttbr1_l0_base = (pt_entry_t*)pmap_grab_page();
 	ttbr1_l0_base = (pt_entry_t*)phystokv(phys_ttbr1_l0_base);
 
+	/* Make sure to grab ttbr0_l0_base last, so it can be then freed.  */
+	phys_ttbr0_l0_base = (pt_entry_t*)pmap_grab_page();
+	ttbr0_l0_base = (pt_entry_t*)phystokv(phys_ttbr0_l0_base);
+
 	memset(phys_ttbr0_l0_base, 0, PAGE_SIZE);
 	/* Temporary identity map.  */
-	phys_ttbr0_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_UNO_PRW | kernel_mapping_bti | AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr0_l0_base[kernel_gb_index] = kernel_gb
+		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
+		| AARCH64_PTE_ACCESS
+		| AARCH64_PTE_BLOCK
+		| AARCH64_PTE_VALID
+		| AARCH64_PTE_UXN
+		| AARCH64_PTE_UNO_PRW
+		| kernel_mapping_bti
+		| AARCH64_PTE_NON_SH /* ? */;
 
 	/* This would need to be load slide rather than 0 for PIC.  */
 	memset(phys_ttbr1_l0_base, 0, PAGE_SIZE);
-	phys_ttbr1_l0_base[0] = 0x0 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | AARCH64_PTE_PXN | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
-	phys_ttbr1_l0_base[1] = 0x40000000 | AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX) | AARCH64_PTE_ACCESS | AARCH64_PTE_BLOCK | AARCH64_PTE_VALID | AARCH64_PTE_UXN | kernel_mapping_bti | AARCH64_PTE_UNO_PRW | AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr1_l0_base[0] = 0x0
+		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
+		| AARCH64_PTE_ACCESS
+		| AARCH64_PTE_BLOCK
+		| AARCH64_PTE_VALID
+		| AARCH64_PTE_UXN
+		| AARCH64_PTE_PXN
+		| AARCH64_PTE_UNO_PRW
+		| AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr1_l0_base[kernel_gb_index] = kernel_gb
+		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
+		| AARCH64_PTE_ACCESS
+		| AARCH64_PTE_BLOCK
+		| AARCH64_PTE_VALID
+		| AARCH64_PTE_UXN
+		| kernel_mapping_bti
+		| AARCH64_PTE_UNO_PRW
+		| AARCH64_PTE_NON_SH /* ? */;
 
 	/* Attempt to enable the MMU.  */
 	asm volatile(
@@ -123,7 +242,8 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	/* Unmap the identity mapping, we no longer need it.  */
 	ttbr0_l0_base[1] = 0;
 	cache_flush();
-	/* TODO free the page */
+
+	pmap_ungrab_page((vm_offset_t) phys_ttbr0_l0_base);
 }
 
 void pmap_bootstrap_misc(void)
@@ -134,7 +254,7 @@ void pmap_bootstrap_misc(void)
 	 * mapped into the kernel address space,
 	 * and extends to a stupid arbitrary limit beyond that.
 	 */
-	kernel_virtual_start = phystokv(/* FIXME */ 0x80000000);
+	kernel_virtual_start = phystokv(phys_mem_start + phys_mem_size);
 	kernel_virtual_end = kernel_virtual_start + VM_KERNEL_MAP_SIZE;
 
 
@@ -145,6 +265,8 @@ void pmap_bootstrap_misc(void)
 	simple_lock_init(&kernel_pmap->lock);
 	kernel_pmap->ref_count = 1;
 	kernel_pmap->l0_base = PT_ENTRY_NULL;
+
+	vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, phys_mem_start + phys_mem_size);
 }
 
 void pmap_virtual_space(

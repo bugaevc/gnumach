@@ -28,5 +28,5 @@ SECTIONS
         *(.bss);
         __bss_end = .;
     }
-    _image_size = . - ADDR(.text);
+    _image_end = .;
 }

@@ -1,4 +1,4 @@
-#include "aarch64/arm-timer.h"
+#include "arm/timer.h"
 #include <kern/assert.h>
 #include "aarch64/mach_param.h" /* HZ */
 #include <kern/mach_clock.h>

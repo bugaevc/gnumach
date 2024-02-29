@@ -19,6 +19,8 @@
 #include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
 #include "aarch64/hwcaps.h"
+#include "arm/gic-v2.h"
+#include "arm/pl011.h"
 #include <device/cons.h>
 #include <device/dtb.h>
 #include <mach/machine.h>
@@ -27,6 +29,8 @@
 #include <kern/bootstrap.h>
 #include <kern/boot_script.h>
 #include <string.h>
+
+#include <device/intr.h>	/* FIXME */
 
 /* Some ELF definitions, for applying relocations.  */
 
@@ -47,22 +51,17 @@ typedef struct
 
 
 const char *kernel_cmdline;
+
 char /*struct start_info*/ boot_info;
-char irqtab;
-char iunit;
-char ivect;
+struct irqdev irqtab;
+int iunit[1];
+interrupt_handler_fn ivect[1];
 
 int spl_init;
 
 static void nommu_putc(char c)
 {
 	volatile char *out = (char*)0x09000000;
-	*out = c;
-}
-
-void putc(char c)
-{
- 	volatile char *out = (char*)phystokv(0x09000000);
 	*out = c;
 }
 
@@ -102,16 +101,6 @@ void halt_all_cpus(boolean_t reboot)
 }
 
 
-static vm_offset_t heap_start = 0x50000000;
-vm_offset_t pmap_grab_page(void)
-{
-	vm_offset_t res = heap_start;
-
-	heap_start += PAGE_SIZE;
-
-	return res;
-}
-
 /*
  * Find devices.  The system is alive.
  */
@@ -119,15 +108,12 @@ void machine_init(void)
 {
 	hwcaps_init();
 
-	/* FIXME unhardcode */
-	*(volatile uint32_t *) phystokv(0x8000000) = 1;
-	*(volatile uint32_t *) phystokv(0x8010000) = 1;
-	*(volatile uint32_t *) phystokv(0x8010004) = 0xff;
-	*(volatile uint32_t *) phystokv(0x8010008) = 0;
-	*(volatile uint32_t *) phystokv(0x8000100) = 1 << 30;
-
 	spl7();
 	spl_init = TRUE;
+
+	/* TODO enable the right controller, not gic_v2 */
+	gic_v2_enable();
+	gic_v2_enable_irq(30);
 }
 
 static void zero_out_bss(void)
@@ -207,11 +193,19 @@ static void initial_dtb_walk(void)
 			if (!DTB_IS_SENTINEL(prop))
 				kernel_cmdline = (const char *) phystokv(prop.data);
 			continue;
+		} else if (dtb_node_is_compatible(&node, "arm,pl011")) {
+			pl011_init(&node);
+			continue;
+		} else if (gic_v2_is_compatible(&node)) {
+			gic_v2_init(&node);
+			continue;
 		}
 		dtb_for_each_prop (node, prop) {
 			if (!strcmp(prop.name, "device_type")) {
-				if (!strcmp(prop.data, "memory"))
-					nommu_putc('!');
+				if (!strcmp(prop.data, "memory")) {
+					pmap_discover_physical_memory(&node);
+					continue;
+				}
 			}
 		}
 	}
@@ -238,18 +232,16 @@ void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 
 	initial_dtb_walk();
 
-	/* FIXME This is specific to -machine virt -m 1G.  */
-	vm_page_load(VM_PAGE_SEG_DMA, 0x40000000, 0x80000000);
 	pmap_bootstrap();
 	/* Now running with MMU from highmem, re-load things.  */
 	asm volatile("" ::: "memory");
 	apply_runtime_relocations();
 	pmap_bootstrap_misc();
-	vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, 0x80000000);
 
 	load_exception_vector_table();
 
-	romputc = putc;
+	/* FIXME this should no longer use romputc */
+	romputc = pl011_putc;
 
 	machine_slot[0].is_cpu = TRUE;
 
@@ -287,6 +279,7 @@ void machine_exec_boot_script(void)
 			printf("module %d: %s\n", i, args);
 
 			prop = dtb_node_find_prop(&node, "reg");
+			assert(!DTB_IS_SENTINEL(prop));
 			address_cells = node.address_cells;
 			size_cells = node.size_cells;
 

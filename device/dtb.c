@@ -142,6 +142,12 @@ kern_return_t dtb_load(dtb_t dtb)
 	return KERN_SUCCESS;
 }
 
+void dtb_get_location(dtb_t *out_dtb, vm_size_t *out_dtb_size)
+{
+	*out_dtb = global_dtb;
+	*out_dtb_size = be32toh(global_dtb->total_size);
+}
+
 struct dtb_node dtb_root_node(void)
 {
 	return make_node_at_offset(be32toh(global_dtb->offset_dt_struct));
@@ -301,7 +307,7 @@ boolean_t dtb_node_is_compatible(const struct dtb_node *node, const char *model)
 	for (off = 0; off < prop.length;) {
 		if (!strcmp(model, prop.data + off))
 			return TRUE;
-		off += strlen(prop.data + off);
+		off += strlen(prop.data + off) + 1;
 	}
 
 	return FALSE;

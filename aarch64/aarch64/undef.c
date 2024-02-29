@@ -1,6 +1,3 @@
-void b_to_q() {}
-void cb_alloc() {}
-void cb_clear() {}
 void constab() {}
 void delay() {}
 void dev_indirect_count() {}
@@ -24,6 +21,5 @@ void pmap_pageable() {}
 void pmap_page_protect() {}
 void pmap_remove() {}
 void pmap_zero_page() {}
-void q_to_b() {}
 void resettodr() {}
 void unmask_irq() {}
