@@ -269,6 +269,7 @@ void machine_exec_boot_script(void)
 {
 	struct dtb_node 	chosen, node;
 	struct dtb_prop 	prop;
+	unsigned short		address_cells, size_cells;
 	struct bootstrap_module	bmod;
 	int			i = 0, err, losers = 0;
 	const char		*args;
@@ -284,15 +285,23 @@ void machine_exec_boot_script(void)
 				panic("No bootargs for bootstrap module %d %s\n", i, node.name);
 			args = (const char *) prop.data;
 			printf("module %d: %s\n", i, args);
-			prop = dtb_node_find_prop(&node, "reg");
-			printf("reg:");
-			for (int i = 0; i < prop.length; i++)
-				printf(" %#02.x", *((const unsigned char *) prop.data + i));
-			printf("\n");
 
-			/* FIXME need a proper helper to read reg/cells */
-			bmod.mod_start = __builtin_bswap64(*(const vm_offset_t *) prop.data);
-			bmod.mod_end = bmod.mod_start + __builtin_bswap64(*((const vm_size_t *) prop.data + 1));
+			prop = dtb_node_find_prop(&node, "reg");
+			address_cells = node.address_cells;
+			size_cells = node.size_cells;
+
+			/*
+			 *	Work around an apparent QEMU guest-laoder bug,
+			 *	where it unconditionally uses address/size cell
+			 *	size of 2, yet doesn't set (or respect previously
+			 *	set) #address-cells / #size-cells properties in
+			 *	the parent node.
+			 */
+			if (prop.length == 16 && address_cells == 2 && size_cells == 1)
+				size_cells = 2;
+
+			bmod.mod_start = dtb_prop_read_cells(&prop, address_cells, 0);
+			bmod.mod_end = bmod.mod_start + dtb_prop_read_cells(&prop, size_cells, address_cells * 4);
 
 			/* FIXME: we probably should make a copy of this string */
 			/* FIXME cannot pass on-stack bmod, it keeps the pointer */

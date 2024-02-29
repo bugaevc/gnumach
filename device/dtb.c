@@ -18,7 +18,7 @@ static uint32_t be32toh(dtb_uint32_t arg)
 {
 	/* Assumes little-endian.  */
 	uint32_t raw;
-	memcpy(&raw, &arg, 4);
+	__builtin_memcpy(&raw, &arg, 4);
 	return __builtin_bswap32(raw);
 }
 
@@ -305,4 +305,28 @@ boolean_t dtb_node_is_compatible(const struct dtb_node *node, const char *model)
 	}
 
 	return FALSE;
+}
+
+extern uint64_t dtb_prop_read_cells(
+	const struct dtb_prop	*prop,
+	unsigned short		size,
+	vm_size_t		off)
+{
+	const void	*addr;
+	uint64_t	tmp;
+
+	assert(off + size <= prop->length);
+	addr = (unsigned char *) prop->data + off;
+
+	switch (size) {
+		case 0:
+			return 0;
+		case 1:
+			return be32toh(*(const dtb_uint32_t *) addr);
+		case 2:
+			__builtin_memcpy(&tmp, addr, 8);
+			return __builtin_bswap64(tmp);
+		default:
+			panic("Unimplemented cell size: %d\n", size);
+	}
 }

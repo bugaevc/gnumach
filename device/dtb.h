@@ -67,4 +67,9 @@ extern struct dtb_node dtb_node_by_path(const char *node_path);
 extern struct dtb_prop dtb_node_find_prop(const struct dtb_node*, const char *prop_name);
 extern boolean_t dtb_node_is_compatible(const struct dtb_node*, const char *model);
 
+extern uint64_t dtb_prop_read_cells(
+	const struct dtb_prop	*prop,
+	unsigned short		size,
+	vm_size_t		off);
+
 #endif /* _DEVICE_DTB_H_ */
