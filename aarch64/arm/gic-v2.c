@@ -26,27 +26,26 @@ static vm_size_t		cpu_size;
 #define GICD_REG(off)		*(volatile uint32_t *) (distributor_base + off)
 #define GICC_REG(off)		*(volatile uint32_t *) (cpu_base + off)
 
-void gic_v2_init(const struct dtb_node *node)
+void gic_v2_init(dtb_node_t node, dtb_ranges_map_t map)
 {
-	struct dtb_prop		prop;
-	uint64_t		tmp;
-	vm_offset_t		off = 0;
+	struct dtb_prop	prop;
+	uint64_t	tmp;
+	vm_offset_t	off = 0;
 
 	prop = dtb_node_find_prop(node, "reg");
 	assert(!DTB_IS_SENTINEL(prop));
 
-	tmp = dtb_prop_read_cells(&prop, node->address_cells, 0);
-	off += node->address_cells * 4;
+	tmp = dtb_prop_read_cells(&prop, node->address_cells, &off);
+	tmp = dtb_map_address(map, tmp);
 	distributor_base = (volatile unsigned char *) phystokv(tmp);
 
-	distributor_size = dtb_prop_read_cells(&prop, node->size_cells, off);
-	off += node->size_cells * 4;
+	distributor_size = dtb_prop_read_cells(&prop, node->size_cells, &off);
 
-	tmp = dtb_prop_read_cells(&prop, node->address_cells, off);
-	off += node->address_cells * 4;
+	tmp = dtb_prop_read_cells(&prop, node->address_cells, &off);
+	tmp = dtb_map_address(map, tmp);
 	cpu_base = (volatile unsigned char *) phystokv(tmp);
 
-	cpu_size = dtb_prop_read_cells(&prop, node->size_cells, off);
+	cpu_size = dtb_prop_read_cells(&prop, node->size_cells, &off);
 }
 
 void gic_v2_enable(void)

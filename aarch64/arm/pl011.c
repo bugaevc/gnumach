@@ -29,17 +29,19 @@
 static volatile unsigned char *base_address;
 #define UART_REG(off, tp)	*(volatile tp *) (base_address + off)
 
-void pl011_init(const struct dtb_node *node)
+void pl011_init(dtb_node_t node, dtb_ranges_map_t map)
 {
-	struct dtb_prop		prop;
-	uint64_t		addr;
+	struct dtb_prop	prop;
+	uint64_t	addr;
+	vm_size_t	off = 0;
 
 	assert(dtb_node_is_compatible(node, "arm,pl011"));
 
 	prop = dtb_node_find_prop(node, "reg");
 	assert(!DTB_IS_SENTINEL(prop));
 
-	addr = dtb_prop_read_cells(&prop, node->address_cells, 0);
+	addr = dtb_prop_read_cells(&prop, node->address_cells, &off);
+	addr = dtb_map_address(map, addr);
 	base_address = (volatile unsigned char *) phystokv(addr);
 }
 

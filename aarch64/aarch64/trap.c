@@ -213,6 +213,9 @@ void trap_sync_exc_el1(
 					panic("Kernel thread accessed user space!\n");
 			}
 
+			if ((far >= VM_MIN_KERNEL_ADDRESS && far < kernel_virtual_start) || far >= kernel_virtual_end)
+				panic("Kernel segfault at %p (physical memory area!)\n", (void *) far);
+
 			kr = vm_fault(current_map(), trunc_page(far),
 				      esr_to_fault_type(esr),
 				      FALSE, FALSE, NULL);
@@ -242,7 +245,7 @@ void trap_sync_exc_el1(
 				}
 			}
 
-			panic("Kernel segfault\n");
+			panic("Kernel segfault at %p\n", (void *) far);
 		default:
 			panic("Exception in EL1\n");
 	}

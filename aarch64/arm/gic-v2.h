@@ -16,7 +16,7 @@
 	|| dtb_node_is_compatible(node, "qcom,msm-8660-qgic")		\
 	|| dtb_node_is_compatible(node, "qcom,msm-qgic2"))
 
-extern void gic_v2_init(const struct dtb_node*);
+extern void gic_v2_init(dtb_node_t node, dtb_ranges_map_t map);
 extern void gic_v2_enable(void);
 
 extern void gic_v2_enable_irq(int irq);

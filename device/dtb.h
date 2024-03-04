@@ -41,6 +41,8 @@ struct dtb_node {
 	unsigned short	size_cells;
 };
 
+typedef const struct dtb_node *dtb_node_t;
+
 struct dtb_prop {
 	vm_offset_t	offset;
 	const char	*name;
@@ -48,11 +50,25 @@ struct dtb_prop {
 	vm_size_t	length;
 };
 
+typedef const struct dtb_prop *dtb_prop_t;
+
+struct dtb_ranges_map {
+	unsigned short	child_address_cells;
+	unsigned short	parent_address_cells;
+	unsigned short	child_size_cells;
+	const void	*ranges;
+	vm_size_t	ranges_length;
+
+	struct dtb_ranges_map *next;
+};
+
+typedef const struct dtb_ranges_map *dtb_ranges_map_t;
+
 extern struct dtb_node dtb_root_node(void);
-extern struct dtb_prop dtb_node_first_prop(const struct dtb_node*);
-extern struct dtb_prop dtb_node_next_prop(const struct dtb_prop*);
-extern struct dtb_node dtb_node_first_child(const struct dtb_node*);
-extern struct dtb_node dtb_node_next_sibling(const struct dtb_node*);
+extern struct dtb_prop dtb_node_first_prop(dtb_node_t node);
+extern struct dtb_prop dtb_node_next_prop(dtb_prop_t prop);
+extern struct dtb_node dtb_node_first_child(dtb_node_t node);
+extern struct dtb_node dtb_node_next_sibling(dtb_node_t node);
 
 #define dtb_for_each_child(parent, child)				\
 	for (child = dtb_node_first_child(&(parent));			\
@@ -65,12 +81,25 @@ extern struct dtb_node dtb_node_next_sibling(const struct dtb_node*);
 	     prop = dtb_node_next_prop(&prop))
 
 extern struct dtb_node dtb_node_by_path(const char *node_path);
-extern struct dtb_prop dtb_node_find_prop(const struct dtb_node*, const char *prop_name);
-extern boolean_t dtb_node_is_compatible(const struct dtb_node*, const char *model);
+
+extern struct dtb_prop dtb_node_find_prop(
+	dtb_node_t	node,
+	const char 	*prop_name);
+
+extern boolean_t dtb_node_is_compatible(
+	dtb_node_t	node,
+	const char	*model);
 
 extern uint64_t dtb_prop_read_cells(
-	const struct dtb_prop	*prop,
-	unsigned short		size,
-	vm_size_t		off);
+	dtb_prop_t	prop,
+	unsigned short	size,
+	vm_size_t	*off);
+
+extern struct dtb_ranges_map dtb_node_make_ranges_map(
+	dtb_node_t	node);
+
+extern vm_offset_t dtb_map_address(
+	dtb_ranges_map_t	map,
+	vm_offset_t		address);
 
 #endif /* _DEVICE_DTB_H_ */

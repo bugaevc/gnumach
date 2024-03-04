@@ -1,5 +1,5 @@
-struct dtb_node;
+#include <device/dtb.h>
 
-void pl011_init(const struct dtb_node *node);
+void pl011_init(dtb_node_t node, dtb_ranges_map_t map);
 
 void pl011_putc(char c);

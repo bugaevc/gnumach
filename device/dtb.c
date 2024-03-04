@@ -3,13 +3,21 @@
 #include <kern/debug.h>
 #include <string.h>
 
-#define DTB_MAGIC	0xd00dfeed
+#define DTB_MAGIC		0xd00dfeed
 
-#define DTB_BEGIN_NODE	0x1
-#define DTB_END_NODE	0x2
-#define DTB_PROP	0x3
-#define DTB_NOP		0x4
-#define DTB_END		0x9
+#define DTB_BEGIN_NODE		0x1
+#define DTB_END_NODE		0x2
+#define DTB_PROP		0x3
+#define DTB_NOP			0x4
+#define DTB_END			0x9
+
+/*
+ *	"If missing, a client program should assume a default
+ *	value of 2 for #address-cells, and a value of 1 for
+ *	#size-cells."
+ */
+#define DEFAULT_ADDRESS_CELLS	2
+#define DEFAULT_SIZE_CELLS	1
 
 static dtb_t global_dtb;
 #define DTB_PTR(offset) ((const char *) global_dtb + (offset))
@@ -35,13 +43,15 @@ static uint32_t uint32_at_offset(vm_offset_t offset)
 
 static void __attribute__((noreturn)) panic_unexpected_token(vm_offset_t offset)
 {
-	panic("Unexpected DTB token at %#x: %#x\n", (unsigned) offset, uint32_at_offset(offset));
+	assert((offset & 3) == 0);
+	panic("Unexpected DTB token at %#x: %#x\n",
+	      (unsigned) offset, uint32_at_offset(offset));
 }
 
 static void skip_nops(vm_offset_t *offset)
 {
 	while (uint32_at_offset(*offset) == DTB_NOP)
-		(*offset)++;
+		(*offset) += 4;
 }
 
 static void skip_padding(vm_offset_t *offset)
@@ -153,7 +163,7 @@ struct dtb_node dtb_root_node(void)
 	return make_node_at_offset(be32toh(global_dtb->offset_dt_struct));
 }
 
-struct dtb_prop dtb_node_first_prop(const struct dtb_node *node)
+struct dtb_prop dtb_node_first_prop(dtb_node_t node)
 {
 	vm_offset_t	offset = node->offset;
 
@@ -163,7 +173,7 @@ struct dtb_prop dtb_node_first_prop(const struct dtb_node *node)
 	return make_prop_at_offset(offset);
 }
 
-struct dtb_prop dtb_node_next_prop(const struct dtb_prop *prev_prop)
+struct dtb_prop dtb_node_next_prop(dtb_prop_t prev_prop)
 {
 	boolean_t	skipped;
 	vm_offset_t	offset = prev_prop->offset;
@@ -174,18 +184,14 @@ struct dtb_prop dtb_node_next_prop(const struct dtb_prop *prev_prop)
 	return make_prop_at_offset(offset);
 }
 
-struct dtb_node dtb_node_first_child(const struct dtb_node *parent)
+struct dtb_node dtb_node_first_child(dtb_node_t parent)
 {
 	vm_offset_t	offset = parent->offset;
 	struct dtb_prop	prop;
 	struct dtb_node	node;
-	/*
-	 *	"If missing, a client program should assume a default
-	 *	value of 2 for #address-cells, and a value of 1 for
-	 *	#size-cells."
-	 */
-	unsigned short	address_cells = 2;
-	unsigned short	size_cells = 1;
+
+	unsigned short	address_cells = DEFAULT_ADDRESS_CELLS;
+	unsigned short	size_cells = DEFAULT_SIZE_CELLS;
 
 	assert(offset != DTB_SENTINEL_OFFSET);
 
@@ -212,7 +218,7 @@ struct dtb_node dtb_node_first_child(const struct dtb_node *parent)
 	return node;
 }
 
-struct dtb_node dtb_node_next_sibling(const struct dtb_node *node)
+struct dtb_node dtb_node_next_sibling(dtb_node_t node)
 {
 	vm_offset_t	offset = node->offset;
 	unsigned int	depth = 0;
@@ -279,7 +285,9 @@ struct dtb_node dtb_node_by_path(const char *node_path)
 	}
 }
 
-struct dtb_prop dtb_node_find_prop(const struct dtb_node *node, const char *prop_name)
+struct dtb_prop dtb_node_find_prop(
+	dtb_node_t	node,
+	const char	*prop_name)
 {
 	struct dtb_prop	prop;
 
@@ -295,7 +303,9 @@ struct dtb_prop dtb_node_find_prop(const struct dtb_node *node, const char *prop
 	return prop;
 }
 
-boolean_t dtb_node_is_compatible(const struct dtb_node *node, const char *model)
+boolean_t dtb_node_is_compatible(
+	dtb_node_t	node,
+	const char	*model)
 {
 	struct dtb_prop prop;
 	vm_size_t	off;
@@ -313,16 +323,15 @@ boolean_t dtb_node_is_compatible(const struct dtb_node *node, const char *model)
 	return FALSE;
 }
 
-extern uint64_t dtb_prop_read_cells(
-	const struct dtb_prop	*prop,
-	unsigned short		size,
-	vm_size_t		off)
+static uint64_t read_cells(
+	const void	*addr,
+	unsigned short	size,
+	vm_size_t	*off)
 {
-	const void	*addr;
 	uint64_t	tmp;
 
-	assert(off + size <= prop->length);
-	addr = (unsigned char *) prop->data + off;
+	addr = (const unsigned char *) addr + *off;
+	*off += size * 4;
 
 	switch (size) {
 		case 0:
@@ -335,4 +344,68 @@ extern uint64_t dtb_prop_read_cells(
 		default:
 			panic("Unimplemented cell size: %d\n", size);
 	}
+}
+
+extern uint64_t dtb_prop_read_cells(
+	dtb_prop_t	prop,
+	unsigned short	size,
+	vm_size_t	*off)
+{
+	assert((*off) + (size * 4) <= prop->length);
+	return read_cells(prop->data, size, off);
+}
+
+struct dtb_ranges_map dtb_node_make_ranges_map(dtb_node_t node)
+{
+	struct dtb_ranges_map	m;
+	struct dtb_prop		prop;
+
+	m.parent_address_cells = node->address_cells;
+	m.child_address_cells = DEFAULT_ADDRESS_CELLS;
+	m.child_size_cells = DEFAULT_SIZE_CELLS;
+	m.ranges = NULL;
+	m.ranges_length = 0;
+	m.next = NULL;
+
+	dtb_for_each_prop (*node, prop) {
+		if (!strcmp(prop.name, "#address-cells")) {
+			assert(prop.length == 4);
+			m.child_address_cells = be32toh(*(const dtb_uint32_t *) prop.data);
+		} else if (!strcmp(prop.name, "#size-cells")) {
+			assert(prop.length == 4);
+			m.child_size_cells = be32toh(*(const dtb_uint32_t *) prop.data);
+                } else if (!strcmp(prop.name, "ranges")) {
+			m.ranges = prop.data;
+			m.ranges_length = prop.length;
+                }
+	}
+
+	return m;
+}
+
+vm_offset_t dtb_map_address(
+	dtb_ranges_map_t	map,
+	vm_offset_t		address)
+{
+	boolean_t	found;
+	vm_offset_t	child_addr, parent_addr;
+	vm_size_t	size, off;
+
+	for (; map != NULL; map = map->next) {
+		found = FALSE;
+		for (off = 0; off < map->ranges_length;) {
+			child_addr = read_cells(map->ranges, map->child_address_cells, &off);
+			parent_addr = read_cells(map->ranges, map->parent_address_cells, &off);
+			size = read_cells(map->ranges, map->child_size_cells, &off);
+
+			if (child_addr <= address && address < child_addr + size) {
+				found = TRUE;
+				address = address - child_addr + parent_addr;
+				break;
+			}
+		}
+		assert(found || map->ranges_length == 0);
+	}
+
+	return address;
 }

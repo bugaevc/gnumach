@@ -35,11 +35,11 @@
 ENTRY(_start)
 	mrs	x4, CurrentEL
 	cmp	x4, #(1 << 2)
-	beq	.in_el1
+	b.eq	.in_el1
 	adr	x5, .in_el1
 	mov	x6, #((0x7 << 6) | (5 << 0))
 	cmp	x4, #(2 << 2)
-	beq	.in_el2
+	b.eq	.in_el2
 .in_el3:
 	msr	ELR_EL3, x5
 	msr	SPSR_EL3, x6

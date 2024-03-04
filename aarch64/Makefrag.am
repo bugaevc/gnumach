@@ -57,6 +57,8 @@ libkernel_a_SOURCES += \
 	aarch64/arm/gic-v2.c \
 	aarch64/arm/pl011.h \
 	aarch64/arm/pl011.c \
+	aarch64/arm/psci.h \
+	aarch64/arm/psci.c \
 	aarch64/arm/timer.h \
 	aarch64/arm/timer.c \
 	device/dtb.h \

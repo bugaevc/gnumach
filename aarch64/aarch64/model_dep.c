@@ -21,6 +21,7 @@
 #include "aarch64/hwcaps.h"
 #include "arm/gic-v2.h"
 #include "arm/pl011.h"
+#include "arm/psci.h"
 #include <device/cons.h>
 #include <device/dtb.h>
 #include <mach/machine.h>
@@ -80,6 +81,8 @@ void halt_cpu(void)
 #ifdef MACH_HYP
 	hyp_halt();
 #else
+	/* Try PSCI.  */
+	psci_cpu_off();
 	/* Disable interrupts and WFE forever.  */
 	asm volatile(
 		"msr	DAIFSet, #3\n"
@@ -93,8 +96,12 @@ void halt_cpu(void)
 
 void halt_all_cpus(boolean_t reboot)
 {
+	if (reboot)
+		psci_system_reset();
+	else
+		psci_system_off();
+
 	/* TODO halt _all_ CPUs. */
-	(void) reboot;
 	printf("Shutdown completed successfully, now in tight loop.\n");
 	printf("You can safely power off the system or hit ctl-alt-del to reboot\n");
 	halt_cpu();
@@ -169,6 +176,31 @@ static void print_model(const char *model)
 	nommu_putc('\n');
 }
 
+static void initial_dtb_walk_visit_node(
+	dtb_node_t 		node,
+	dtb_ranges_map_t	map)
+{
+	struct dtb_node		child;
+	struct dtb_ranges_map	nmap;
+	boolean_t		have_nmap = FALSE;
+
+	if (dtb_node_is_compatible(node, "arm,pl011")) {
+		pl011_init(node, map);
+	} else if (gic_v2_is_compatible(node)) {
+		gic_v2_init(node, map);
+	} else if (psci_is_compatible(node)) {
+		psci_init(node);
+	} else if (dtb_node_is_compatible(node, "simple-bus")) {
+		nmap = dtb_node_make_ranges_map(node);
+		nmap.next = map;
+		have_nmap = TRUE;
+	}
+
+	dtb_for_each_child (*node, child) {
+		initial_dtb_walk_visit_node(&child, have_nmap ? &nmap : map);
+	}
+}
+
 static void initial_dtb_walk(void)
 {
 	struct dtb_node	node;
@@ -188,16 +220,10 @@ static void initial_dtb_walk(void)
 	 *	Look at top-level nodes and their props.
 	 */
 	dtb_for_each_child (node, node) {
-		if (!strcmp(node.name, "chosen")) {
+		if (!strcmp(node.name, "chosen") || !strncmp(node.name, "chosen@", 7)) {
 			prop = dtb_node_find_prop(&node, "bootargs");
 			if (!DTB_IS_SENTINEL(prop))
 				kernel_cmdline = (const char *) phystokv(prop.data);
-			continue;
-		} else if (dtb_node_is_compatible(&node, "arm,pl011")) {
-			pl011_init(&node);
-			continue;
-		} else if (gic_v2_is_compatible(&node)) {
-			gic_v2_init(&node);
 			continue;
 		}
 		dtb_for_each_prop (node, prop) {
@@ -208,6 +234,7 @@ static void initial_dtb_walk(void)
 				}
 			}
 		}
+		initial_dtb_walk_visit_node(&node, NULL);
 	}
 }
 
@@ -265,6 +292,7 @@ void machine_exec_boot_script(void)
 	struct bootstrap_module	bmod;
 	int			i = 0, err, losers = 0;
 	const char		*args;
+	vm_offset_t		off;
 
 	chosen = dtb_node_by_path("/chosen");
 	if (DTB_IS_SENTINEL(chosen))
@@ -293,8 +321,9 @@ void machine_exec_boot_script(void)
 			if (prop.length == 16 && address_cells == 2 && size_cells == 1)
 				size_cells = 2;
 
-			bmod.mod_start = dtb_prop_read_cells(&prop, address_cells, 0);
-			bmod.mod_end = bmod.mod_start + dtb_prop_read_cells(&prop, size_cells, address_cells * 4);
+			off = 0;
+			bmod.mod_start = dtb_prop_read_cells(&prop, address_cells, &off);
+			bmod.mod_end = bmod.mod_start + dtb_prop_read_cells(&prop, size_cells, &off);
 
 			/* FIXME: we probably should make a copy of this string */
 			/* FIXME cannot pass on-stack bmod, it keeps the pointer */

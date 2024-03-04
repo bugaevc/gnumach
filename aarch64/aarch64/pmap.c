@@ -67,7 +67,7 @@ static inline void cache_flush(void)
 	asm volatile("dsb st\n\tisb sy" ::: "memory");
 }
 
-void pmap_discover_physical_memory(const struct dtb_node *node)
+void pmap_discover_physical_memory(dtb_node_t node)
 {
 	struct dtb_prop	prop;
 	dtb_t		dtb;
@@ -89,12 +89,10 @@ void pmap_discover_physical_memory(const struct dtb_node *node)
 	while (off < prop.length) {
 		start = dtb_prop_read_cells(&prop,
 			node->address_cells,
-			off);
-		off += node->address_cells * 4;
+			&off);
 		size = dtb_prop_read_cells(&prop,
 			node->size_cells,
-			off);
-		off += node->size_cells * 4;
+			&off);
 
 		if (size > phys_mem_size) {
 			phys_mem_start = start;
@@ -174,8 +172,8 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| kernel_mapping_bti
 		| AARCH64_PTE_NON_SH /* ? */;
 
-	/* This would need to be load slide rather than 0 for PIC.  */
 	memset(phys_ttbr1_l0_base, 0, PAGE_SIZE);
+	/* TODO: This assumes that physical memory is in the first GB.  */
 	phys_ttbr1_l0_base[0] = 0x0
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
@@ -194,6 +192,16 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| kernel_mapping_bti
 		| AARCH64_PTE_UNO_PRW
 		| AARCH64_PTE_NON_SH /* ? */;
+
+	/*
+	 * Determine the kernel virtual address range.
+	 * It starts at the end of the physical memory
+	 * mapped into the kernel address space,
+	 * and extends to a stupid arbitrary limit beyond that.
+	 */
+	kernel_virtual_start = phystokv(kernel_gb + (1 << 30));
+	kernel_virtual_end = kernel_virtual_start + VM_KERNEL_MAP_SIZE;
+
 
 	/* Attempt to enable the MMU.  */
 	asm volatile(
@@ -248,16 +256,6 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 
 void pmap_bootstrap_misc(void)
 {
-	/*
-	 * Determine the kernel virtual address range.
-	 * It starts at the end of the physical memory
-	 * mapped into the kernel address space,
-	 * and extends to a stupid arbitrary limit beyond that.
-	 */
-	kernel_virtual_start = phystokv(phys_mem_start + phys_mem_size);
-	kernel_virtual_end = kernel_virtual_start + VM_KERNEL_MAP_SIZE;
-
-
 	kernel_pmap = &kernel_pmap_store;
 #if NCPUS > 1
 	lock_init(&pmap_system_lock, FALSE);
