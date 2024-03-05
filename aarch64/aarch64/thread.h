@@ -39,6 +39,7 @@ typedef struct pcb {
 	   state while on the PCB stack.  */
 	struct aarch64_kernel_exception_state akes_buffer;
 
+	struct aarch64_float_state *afs;
 	struct aarch64_thread_state ats;
 	long	esr;
 	long	far;

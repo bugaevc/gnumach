@@ -50,6 +50,7 @@ struct percpu {
     thread_t		active_thread;
     vm_offset_t		active_stack;
     spl_t		curr_ipl;
+    thread_t		fpu_thread;
 /*
     struct machine_slot	machine_slot;
     struct mp_desc_table mp_desc_table;

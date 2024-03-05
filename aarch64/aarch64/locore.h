@@ -43,4 +43,8 @@ extern boolean_t handle_syscall(struct aarch64_thread_state *ats);
 
 extern void load_exception_vector_table(void);
 
+struct aarch64_float_state;
+extern void _fpu_save_state(struct aarch64_float_state *);
+extern void _fpu_load_state(const struct aarch64_float_state *);
+
 #endif /* _AARCH64_LOCORE_ */

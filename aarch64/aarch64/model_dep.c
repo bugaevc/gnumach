@@ -19,6 +19,7 @@
 #include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
 #include "aarch64/hwcaps.h"
+#include "aarch64/fpu.h"
 #include "arm/gic-v2.h"
 #include "arm/pl011.h"
 #include "arm/psci.h"
@@ -114,6 +115,7 @@ void halt_all_cpus(boolean_t reboot)
 void machine_init(void)
 {
 	hwcaps_init();
+	fpu_init();
 
 	spl7();
 	spl_init = TRUE;
@@ -271,6 +273,7 @@ void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 	romputc = pl011_putc;
 
 	machine_slot[0].is_cpu = TRUE;
+	init_percpu(0);
 
 	if (kernel_cmdline == NULL)
 		kernel_cmdline = "";

@@ -1,6 +1,7 @@
 #include "machine/trap.h"
 #include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
+#include "aarch64/fpu.h"
 #include "arm/gic-v2.h"		/* FIXME */
 #include <mach/exception.h>
 #include <vm/vm_fault.h>
@@ -12,6 +13,7 @@
 #define ESR_EC(esr)		(((esr) >> 26) & 0x3f)
 /* Exception classes.  */
 #define ESR_EC_UNK		0x00		/* unknown reason */
+#define ESR_EC_FP		0x07		/* FP/AdvSIMD access when disabled */
 #define ESR_EC_BTI		0x0d		/* BTI failure */
 #define ESR_EC_ILL		0x0e		/* illegal execution state */
 #define ESR_EC_SVC64		0x15		/* SCV (syscall) */
@@ -108,7 +110,10 @@ void trap_sync_exc_el0(void)
 
 	switch (ESR_EC(esr)) {
 		case ESR_EC_UNK:
-			exception(EXC_BAD_ACCESS, EXC_AARCH64_UNK, far);
+			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_UNK, 0);
+		case ESR_EC_FP:
+			fpu_access_trap();
+			thread_exception_return();
 		case ESR_EC_BTI:
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_BTI, far);
 		case ESR_EC_ILL:

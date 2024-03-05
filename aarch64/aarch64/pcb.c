@@ -1,6 +1,7 @@
 #include "pcb.h"
 #include "aarch64/vm_param.h"
 #include "aarch64/pmap.h"
+#include "aarch64/fpu.h"
 #include <vm/vm_map.h>
 #include <kern/slab.h>
 #include <kern/counters.h>
@@ -76,6 +77,8 @@ void stack_handoff(
 		PMAP_ACTIVATE_USER(vm_map_pmap(new_task->map), new, mycpu);
 	}
 
+	fpu_switch_context(new);
+
 	assert(new->kernel_stack == 0);
 	stack = current_stack();
 	old->kernel_stack = 0;
@@ -102,6 +105,8 @@ thread_t switch_context(
 		PMAP_DEACTIVATE_USER(vm_map_pmap(old_task->map), old, mycpu);
 		PMAP_ACTIVATE_USER(vm_map_pmap(new_task->map), new, mycpu);
 	}
+
+	fpu_switch_context(new);
 
 	return Switch_context(old, continuation, new);
 }
@@ -132,6 +137,7 @@ void pcb_terminate(thread_t thread)
 	counter(if (--c_threads_current < c_threads_min)
 		c_threads_min = c_threads_current);
 
+	fpu_free(thread);
 	kmem_cache_free(&pcb_cache, (vm_offset_t) thread->pcb);
 	thread->pcb = NULL;
 }
@@ -170,8 +176,16 @@ kern_return_t thread_getstatus(
 			return KERN_SUCCESS;
 
 		case AARCH64_FLOAT_STATE:
-			/* TODO */
-			return KERN_MEMORY_FAILURE;
+			if (*count < AARCH64_FLOAT_STATE_COUNT)
+				return KERN_INVALID_ARGUMENT;
+			fpu_flush_state_read(thread);
+			if (thread->pcb->afs == NULL)
+				memset(tstate, 0, sizeof(struct aarch64_float_state));
+			else
+				memcpy(tstate, thread->pcb->afs, sizeof(struct aarch64_float_state));
+			*count = AARCH64_FLOAT_STATE_COUNT;
+			return KERN_SUCCESS;
+
 		default:
 			return KERN_INVALID_ARGUMENT;
 	}
@@ -218,8 +232,15 @@ kern_return_t thread_setstatus(
 			return KERN_SUCCESS;
 
 		case AARCH64_FLOAT_STATE:
-			/* TODO */
-			return KERN_MEMORY_FAILURE;
+			if (count < AARCH64_FLOAT_STATE_COUNT)
+				return KERN_INVALID_ARGUMENT;
+			if (((vm_offset_t) tstate) % alignof(struct aarch64_float_state))
+				return KERN_INVALID_ARGUMENT;
+
+			fpu_flush_state_write(thread);
+			memcpy(thread->pcb->afs, tstate, sizeof(struct aarch64_float_state));
+			return KERN_SUCCESS;
+
 		default:
 			return KERN_INVALID_ARGUMENT;
 	}
