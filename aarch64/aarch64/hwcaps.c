@@ -1,5 +1,7 @@
 #include "aarch64/hwcaps.h"
 
+/* https://docs.kernel.org/arch/arm64/elf_hwcaps.html */
+
 #define ID_AA64PFR0_ASIMD(v)		(((v) >> 20) & 0xf)
 #define ID_AA64PFR0_FP(v)		(((v) >> 16) & 0xf)
 #define ID_AA64PFR0_SVE(v)		(((v) >> 32) & 0xf)
@@ -16,6 +18,20 @@
 #define ID_AA64PFR0_DIT_NONE		0x0			/* DIT not supported */
 #define ID_AA64PFR0_DIT_DIT		0x1			/* DIT supported */
 
+#define ID_AA64PFR1_BT(v)		((v) & 0xf)
+#define ID_AA64PFR1_SSBS(v)		(((v) >> 4) & 0xf)
+#define ID_AA64PFR1_SME(v)		(((v) >> 24) 0xf)
+
+#define ID_AA64PFR1_BT_NONE		0x0			/* BTI not supported */
+#define ID_AA64PFR1_BT_BTI		0x1			/* BTI supported */
+#define ID_AA64PFR1_SSBS_NONE		0x0			/* SSBS not supported */
+#define ID_AA64PFR1_SSBS_SSBS		0x1			/* SSBS supported */
+#define ID_AA64PFR1_SSBS_SSBS2		0x2			/* SSBS + SSBS2 supported */
+#define ID_AA64PFR1_SME_NONE		0x0			/* SME not supported */
+#define ID_AA64PFR1_SME_SME		0x1			/* SME supported */
+#define ID_AA64PFR1_SME_SME2		0x2			/* SME + SME2 supported */
+
+
 #define ID_AA64ISAR0_AES(v)		(((v) >> 4) & 0xf)
 #define ID_AA64ISAR0_SHA1(v)		(((v) >> 8) & 0xf)
 #define ID_AA64ISAR0_SHA2(v)		(((v) >> 12) & 0xf)
@@ -27,6 +43,8 @@
 #define ID_AA64ISAR0_SM4(v)		(((v) >> 40) & 0xf)
 #define ID_AA64ISAR0_DP(v)		(((v) >> 44) & 0xf)
 #define ID_AA64ISAR0_FHM(v)		(((v) >> 48) & 0xf)
+#define ID_AA64ISAR0_TS(v)		(((v) >> 52) & 0xf)
+#define ID_AA64ISAR0_RNDR(v)		(((v) >> 60) & 0xf)
 
 #define ID_AA64ISAR0_AES_AES		0x1			/* AES supported */
 #define ID_AA64ISAR0_AES_PMULL		0x2			/* AES + PMULL supported */
@@ -50,15 +68,33 @@
 #define ID_AA64ISAR0_DP_DP		0x1			/* DP supported */
 #define ID_AA64ISAR0_FHM_NONE		0x0			/* FHM not supported */
 #define ID_AA64ISAR0_FHM_FHM		0x1			/* FHM supported */
+#define ID_AA64ISAR0_TS_NONE		0x0			/* FLAGM not supported */
+#define ID_AA64ISAR0_TS_FLAGM		0x1			/* FLAGM supported */
+#define ID_AA64ISAR0_TS_FLAGM2		0x2			/* FLAGM + FLAGM2 supported */
+#define ID_AA64ISAR0_RNDR_NONE		0x0			/* RNDR not supported */
+#define ID_AA64ISAR0_RNDR_RNDR		0x1			/* RNDR supported */
 
 #define ID_AA64ISAR1_DPB(v)		((v) & 0xf)
+#define ID_AA64ISAR1_APA(v)		(((v) >> 4) & 0xf)
+#define ID_AA64ISAR1_API(v)		(((v) >> 8) & 0xf)
 #define ID_AA64ISAR1_JSCVT(v)		(((v) >> 12) & 0xf)
 #define ID_AA64ISAR1_FCMA(v)		(((v) >> 16) & 0xf)
 #define ID_AA64ISAR1_LRCPC(v)		(((v) >> 20) & 0xf)
+#define ID_AA64ISAR1_GPA(v)		(((v) >> 24) & 0xf)
+#define ID_AA64ISAR1_GPI(v)		(((v) >> 28) & 0xf)
+#define ID_AA64ISAR1_FRINTTS(v)		(((v) >> 32) & 0xf)
+#define ID_AA64ISAR1_SB(v)		(((v) >> 36) & 0xf)
+#define ID_AA64ISAR1_BF16(v)		(((v) >> 44) & 0xf)
+#define ID_AA64ISAR1_DGH(v)		(((v) >> 48) & 0xf)
+#define ID_AA64ISAR1_I8MM(v)		(((v) >> 52) & 0xf)
 
 #define ID_AA64ISAR1_DPB_NONE		0x0			/* DPB not supported */
 #define ID_AA64ISAR1_DPB_DPB		0x1			/* DPB supported */
 #define ID_AA64ISAR1_DPB_DPB2		0x2			/* DPB + DPB2 supported */
+#define ID_AA64ISAR1_APA_NONE		0x0			/* PAC w/ QARMA5 not supported */
+#define ID_AA64ISAR1_APA_APA		0x1			/* PAC w/ QARMA5 supported */
+#define ID_AA64ISAR1_API_NONE		0x0			/* PAC w/ implementation-defined algo not supported */
+#define ID_AA64ISAR1_API_API		0x1			/* PAC w/ implementation-defined algo supported */
 #define ID_AA64ISAR1_JSCVT_NONE		0x0			/* JSCVT not supported */
 #define ID_AA64ISAR1_JSCVT_JSCVT	0x1			/* JSCVT supported */
 #define ID_AA64ISAR1_FCMA_NONE		0x0			/* FCMA not supported */
@@ -67,18 +103,41 @@
 #define ID_AA64ISAR1_LRCPC_LRCPC	0x1			/* LRCPC supported */
 #define ID_AA64ISAR1_LRCPC_LRCPC2	0x2			/* LRCPC + LRCPC2 supported */
 #define ID_AA64ISAR1_LRCPC_LRCPC3	0x3			/* LRCPC + LRCPC2 + LRCPC3 supported */
+#define ID_AA64ISAR1_GPA_NONE		0x0			/* PAC/GA w/ QARMA5 not supported */
+#define ID_AA64ISAR1_GPA_GPA		0x1			/* PAC/GA w/ QARMA5 supported */
+#define ID_AA64ISAR1_GPI_NONE		0x0			/* PAC/GA w/ implementation-defined algo not supported */
+#define ID_AA64ISAR1_GPI_GPI		0x1			/* PAC/GA w/ implementation-defined algo supported */
+#define ID_AA64ISAR1_FRINTTS_NONE	0x0			/* FRINT* not supported */
+#define ID_AA64ISAR1_FRINTTS_FRINTTS	0x1			/* FRINT* supported */
+#define ID_AA64ISAR1_SB_NONE		0x0			/* SB not supported */
+#define ID_AA64ISAR1_BF16_NONE		0x0			/* BFloat16 not supported */
+#define ID_AA64ISAR1_BF16_BF16		0x1			/* BFloat16 supported */
+#define ID_AA64ISAR1_BF16_EBF16		0x2			/* BFloat16 + EBF supported */
+#define ID_AA64ISAR1_DGH_NONE		0x0			/* DGH not supported */
+#define ID_AA64ISAR1_DGH_DGH		0x1			/* DGH supported */
+#define ID_AA64ISAR1_I8MM_NONE		0x0			/* Int8 matrix multiplication not supported */
+#define ID_AA64ISAR1_I8MM_I8MM		0x1			/* Int8 matrix multiplication supported */
+
+#define ID_AA64MMFR2_AT(v)		(((v) >> 32) & 0xf)
+
+#define ID_AA64MMFR2_AT_NONE		0x0			/* AT not supported */
+#define ID_AA64MMFR2_AT_AT		0x1			/* AT supported */
 
 uint32_t	hwcaps[HWCAPS_COUNT];
 
 void hwcaps_init(void)
 {
 	uint64_t	id_aa64pfr0;
+	uint64_t	id_aa64pfr1;
 	uint64_t	id_aa64isar0;
 	uint64_t	id_aa64isar1;
+	uint64_t	id_aa64mmfr2;
 
 	asm("mrs %0, id_aa64pfr0_el1" : "=r"(id_aa64pfr0));
+	asm("mrs %0, id_aa64pfr1_el1" : "=r"(id_aa64pfr1));
 	asm("mrs %0, id_aa64isar0_el1" : "=r"(id_aa64isar0));
 	asm("mrs %0, id_aa64isar1_el1" : "=r"(id_aa64isar1));
+	asm("mrs %0, id_aa64mmfr2_el1" : "=r"(id_aa64mmfr2));
 
 	if (ID_AA64PFR0_FP(id_aa64pfr0) != ID_AA64PFR0_FP_NONE)
 		hwcaps[0] |= HWCAP_FP;
@@ -140,6 +199,48 @@ void hwcaps_init(void)
 		hwcaps[0] |= HWCAP_ASIMDFHM;
 	if (ID_AA64PFR0_DIT(id_aa64pfr0) != ID_AA64PFR0_DIT_NONE)
 		hwcaps[0] |= HWCAP_DIT;
+	if (ID_AA64MMFR2_AT(id_aa64mmfr2) != ID_AA64MMFR2_AT_NONE)
+		hwcaps[0] |= HWCAP_USCAT;
+	if (ID_AA64ISAR0_TS(id_aa64isar0) == ID_AA64ISAR0_TS_FLAGM)
+		hwcaps[0] |= HWCAP_FLAGM;
+	else if (ID_AA64ISAR0_TS(id_aa64isar0) == ID_AA64ISAR0_TS_FLAGM2) {
+		hwcaps[0] |= HWCAP_FLAGM;
+		hwcaps[1] |= HWCAP2_FLAGM2;
+	}
+	if (ID_AA64PFR1_SSBS(id_aa64pfr1) != ID_AA64PFR1_SSBS_NONE)
+		hwcaps[0] |= HWCAP_SSBS;
+	if (ID_AA64ISAR1_SB(id_aa64isar1) != ID_AA64ISAR1_SB_NONE)
+		hwcaps[0] |= HWCAP_SB;
+	if (ID_AA64ISAR1_APA(id_aa64isar1) != ID_AA64ISAR1_APA_NONE)
+		hwcaps[0] |= HWCAP_PACA;
+	if (ID_AA64ISAR1_API(id_aa64isar1) != ID_AA64ISAR1_API_NONE)
+		hwcaps[0] |= HWCAP_PACA;
+	if (ID_AA64ISAR1_GPA(id_aa64isar1) != ID_AA64ISAR1_GPA_NONE)
+		hwcaps[0] |= HWCAP_PACG;
+	if (ID_AA64ISAR1_GPI(id_aa64isar1) != ID_AA64ISAR1_GPI_NONE)
+		hwcaps[0] |= HWCAP_PACG;
+
+	/*
+	 *	SME/SVE are not exposed to userland for now
+	 *	even if hardware supports them, due to lack
+	 *	of kernels-side support.
+	 */
+
+	if (ID_AA64ISAR1_FRINTTS(id_aa64isar1) != ID_AA64ISAR1_FRINTTS_NONE)
+		hwcaps[1] |= HWCAP2_FRINT;
+	if (ID_AA64ISAR1_I8MM(id_aa64isar1) != ID_AA64ISAR1_I8MM_NONE)
+		hwcaps[1] |= HWCAP2_I8MM;
+	if (ID_AA64ISAR1_BF16(id_aa64isar1) == ID_AA64ISAR1_BF16_BF16)
+		hwcaps[1] |= HWCAP2_BF16;
+	else if (ID_AA64ISAR1_BF16(id_aa64isar1) == ID_AA64ISAR1_BF16_EBF16)
+		hwcaps[1] |= HWCAP2_BF16 | HWCAP2_EBF16;
+	if (ID_AA64ISAR1_DGH(id_aa64isar1) != ID_AA64ISAR1_DGH_NONE)
+		hwcaps[1] |= HWCAP2_DGH;
+	if (ID_AA64ISAR0_RNDR(id_aa64isar0) != ID_AA64ISAR0_RNDR_NONE)
+		hwcaps[1] |= HWCAP2_RNG;
+	if (ID_AA64PFR1_BT(id_aa64pfr1) != ID_AA64PFR1_BT_NONE)
+		hwcaps[1] |= HWCAP2_BTI;
 
 	/* to be continued... */
+
 }

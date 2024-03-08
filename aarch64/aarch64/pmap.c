@@ -216,6 +216,13 @@ void pmap_discover_physical_memory(dtb_node_t node)
 	}
 }
 
+_Static_assert((1UL << VM_AARCH64_T0SZ) == VM_MAX_USER_ADDRESS);
+_Static_assert((1UL << VM_AARCH64_T1SZ) + VM_MIN_KERNEL_ADDRESS == 0UL);
+
+#define BITS_PER_LEVEL		9	/* 4K granularity */
+#define NEXT_SB(sb)		(((sb) - PAGE_SHIFT - 1) / BITS_PER_LEVEL * BITS_PER_LEVEL + PAGE_SHIFT)
+#define TT_INDEX(v, sb, nsb)	(((v) >> (nsb)) & ((1 << ((sb) - (nsb))) - 1))
+
 /*
  *	Bootstrap the system enough to run with virtual memory.
  *	Allocate the kernel page translation tables,
@@ -224,8 +231,11 @@ void pmap_discover_physical_memory(dtb_node_t node)
  */
 void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 {
-	phys_addr_t	kernel_gb;
-	unsigned long	kernel_gb_index;
+	phys_addr_t	kernel_block_0;
+	unsigned long	kernel_block_0_index;
+	phys_addr_t	kernel_block_1;
+	unsigned long	kernel_block_1_index;
+
 	uintptr_t	scratch1, scratch2;
 	pt_entry_t	*phys_ttbr1_l0_base;
 	pt_entry_t	*phys_ttbr0_l0_base;
@@ -243,8 +253,10 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	kernel_mapping_bti = 0;
 #endif
 
-	kernel_gb = ((phys_addr_t) &__text_start) & 0xffffffffc0000000;
-	kernel_gb_index = kernel_gb >> 30;
+	kernel_block_0_index = TT_INDEX((phys_addr_t) &__text_start, VM_AARCH64_T0SZ, NEXT_SB(VM_AARCH64_T0SZ));
+	kernel_block_0 = kernel_block_0_index << NEXT_SB(VM_AARCH64_T0SZ);
+	kernel_block_1_index = TT_INDEX((phys_addr_t) &__text_start, VM_AARCH64_T1SZ, NEXT_SB(VM_AARCH64_T1SZ));
+	kernel_block_1 = kernel_block_1_index << NEXT_SB(VM_AARCH64_T1SZ);
 
 	phys_ttbr1_l0_base = (pt_entry_t*)pmap_grab_page();
 	ttbr1_l0_base = (pt_entry_t*)phystokv(phys_ttbr1_l0_base);
@@ -255,7 +267,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 
 	memset(phys_ttbr0_l0_base, 0, PAGE_SIZE);
 	/* Temporary identity map.  */
-	phys_ttbr0_l0_base[kernel_gb_index] = kernel_gb
+	phys_ttbr0_l0_base[kernel_block_0_index] = kernel_block_0
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
 		| AARCH64_PTE_BLOCK
@@ -265,7 +277,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| AARCH64_PTE_NON_SH /* ? */;
 
 	memset(phys_ttbr1_l0_base, 0, PAGE_SIZE);
-	/* TODO: This assumes that physical memory is in the first GB.  */
+	/* TODO: This assumes that physical memory is in the first block.  */
 	phys_ttbr1_l0_base[0] = 0x0
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
@@ -274,7 +286,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| AARCH64_PTE_UXN
 		| AARCH64_PTE_PXN
 		| AARCH64_PTE_NON_SH /* ? */;
-	phys_ttbr1_l0_base[kernel_gb_index] = kernel_gb
+	phys_ttbr1_l0_base[kernel_block_1_index] = kernel_block_1
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
 		| AARCH64_PTE_BLOCK
@@ -289,7 +301,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	 * mapped into the kernel address space,
 	 * and extends to a stupid arbitrary limit beyond that.
 	 */
-	kernel_virtual_start = phystokv(kernel_gb + (1 << 30));
+	kernel_virtual_start = phystokv(kernel_block_1 + (1UL << NEXT_SB(VM_AARCH64_T1SZ)));
 	kernel_virtual_end = kernel_virtual_start + VM_KERNEL_MAP_SIZE;
 
 
@@ -428,11 +440,6 @@ void pmap_reference(pmap_t pmap)
 	simple_unlock(&pmap->lock);
 }
 
-#define BITS_PER_LEVEL		9	/* 4K granularity */
-#define ROOT_SB			36	/* must match TCR_VALUE */
-#define NEXT_SB(sb)		(((sb) - PAGE_SHIFT - 1) / BITS_PER_LEVEL * BITS_PER_LEVEL + PAGE_SHIFT)
-#define TT_INDEX(v, sb, nsb)	(((v) >> (nsb)) & ((1 << ((sb) - (nsb))) - 1))
-
 static void pmap_destroy_table(
 	pt_entry_t	*table,
 	int		significant_bits)
@@ -485,7 +492,7 @@ void pmap_destroy(pmap_t pmap)
 		ttbr0 != kernel_pmap->l0_base;
 	});
 
-	pmap_destroy_table(pmap->l0_base, ROOT_SB);
+	pmap_destroy_table(pmap->l0_base, VM_AARCH64_T0SZ);
 	kmem_cache_free(&pmap_cache, (vm_offset_t) pmap);
 }
 
@@ -645,6 +652,13 @@ static pt_entry_t *pmap_table(pmap_t pmap, vm_offset_t v)
 	return pmap->l0_base;
 }
 
+static int pmap_root_sb(vm_offset_t v)
+{
+	if (v >= VM_MIN_KERNEL_ADDRESS)
+		return VM_AARCH64_T1SZ;
+	return VM_AARCH64_T0SZ;
+}
+
 /*
  *	Insert the given physical page (p) at
  *	the specified virtual address (v) in the
@@ -682,7 +696,7 @@ void pmap_enter(
 
 	PMAP_READ_LOCK(pmap, spl);
 
-	kr = pmap_walk(pmap, pmap_table(pmap, v), v, ROOT_SB, spl, TRUE, prot, &entry);
+	kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), spl, TRUE, prot, &entry);
 	assert(kr == KERN_SUCCESS);
 	was_present = ((*entry) & AARCH64_PTE_ADDR_MASK) != 0;
 	*entry = ((*entry) & ~AARCH64_PTE_ADDR_MASK & ~AARCH64_PTE_PROT_MASK) | (pt_entry_t)pa | pmap_prot(v, prot);
@@ -739,7 +753,7 @@ phys_addr_t pmap_extract(
 	SPLVM(spl);
 	simple_lock(&pmap->lock);
 
-	kr = pmap_walk(pmap, pmap_table(pmap, v), v, ROOT_SB, spl, FALSE, VM_PROT_NONE, &entry);
+	kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), spl, FALSE, VM_PROT_NONE, &entry);
 	if (kr != KERN_SUCCESS)
 		pa = 0;
 	pa = (*entry) & AARCH64_PTE_ADDR_MASK;
@@ -780,7 +794,7 @@ void pmap_protect(
 	table = pmap_table(pmap, sva);
 	assert(pmap_table(pmap, eva - 1) == table);
 
-	pmap_walk_range(table, sva, eva, ROOT_SB, pmap_protect_callback, (void *) pmap_prot(sva, prot));
+	pmap_walk_range(table, sva, eva, pmap_root_sb(sva), pmap_protect_callback, (void *) pmap_prot(sva, prot));
 
 	simple_unlock(&pmap->lock);
 	SPLX(spl);
@@ -862,7 +876,7 @@ void pmap_remove(
 	table = pmap_table(pmap, sva);
 	assert(pmap_table(pmap, eva - 1) == table);
 
-	pmap_walk_range(table, sva, eva, ROOT_SB, pmap_remove_callback, pmap);
+	pmap_walk_range(table, sva, eva, pmap_root_sb(sva), pmap_remove_callback, pmap);
 
 	PMAP_READ_UNLOCK(pmap, spl);
 }
@@ -899,7 +913,7 @@ void pmap_page_protect(
 		pmap = pv_e->pmap;
 		simple_lock(&pmap->lock);
 		v = pv_e->va;
-		kr = pmap_walk(pmap, pmap_table(pmap, v), v, ROOT_SB, spl, FALSE, VM_PROT_NONE, &entry);
+		kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), spl, FALSE, VM_PROT_NONE, &entry);
 		assert(kr == KERN_SUCCESS);
 		assert((*entry) & AARCH64_PTE_VALID);
 		assert(((*entry) & AARCH64_PTE_ADDR_MASK) == phys);

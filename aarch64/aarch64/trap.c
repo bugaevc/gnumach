@@ -17,6 +17,7 @@
 #define ESR_EC_BTI		0x0d		/* BTI failure */
 #define ESR_EC_ILL		0x0e		/* illegal execution state */
 #define ESR_EC_SVC64		0x15		/* SCV (syscall) */
+#define ESR_EC_MRS		0x18		/* MRS or MRS (or cache?) */
 #define ESR_EC_PAC		0x1c		/* PAC failure */
 #define ESR_EC_IABT_LOWER_EL	0x20		/* instruction abort from lower EL */
 #define ESR_EC_IABT_SAME_EL	0x21		/* instruction abort from the same EL */
@@ -52,7 +53,7 @@ static vm_prot_t esr_to_fault_type(unsigned long esr)
 		case ESR_EC_DABT_LOWER_EL:
 		case ESR_EC_DABT_SAME_EL:
 			if (esr & ESR_DABT_WNR)
-				return VM_PROT_READ | VM_PROT_WRITE;
+				return VM_PROT_WRITE;
 			return VM_PROT_READ;
 		default:
 			panic("Unexpected exception class\n");
@@ -127,6 +128,9 @@ void trap_sync_exc_el0(void)
 			if (imm16 == 0 && handle_syscall(&pcb->ats))
 				thread_exception_return();
 			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_SVC, 0);
+		case ESR_EC_MRS:
+			/* We may add a special code for this (EXC_AARCH64_MRS?) */
+			exception(EXC_BAD_INSTRUCTION, 0, 0);
 		case ESR_EC_PAC:
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_PAC, far);
 		case ESR_EC_IABT_LOWER_EL:

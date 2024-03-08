@@ -80,6 +80,9 @@ extern vm_offset_t kernel_virtual_end;
 #define MAIR_VALUE_ENTRY(index, flags)		((flags) << ((index) * 8))
 #define MAIR_VALUE		(MAIR_VALUE_ENTRY(MAIR_NORMAL_INDEX, MAIR_NORMAL_FLAGS) | MAIR_VALUE_ENTRY(MAIR_DEVICE_INDEX, MAIR_DEVICE_FLAGS))
 
+#define VM_AARCH64_T0SZ		48
+#define VM_AARCH64_T1SZ		48
+
 #define TCR_T0SZ(size)		(64 - size)
 #define TCR_TG0_4K		0x0000000000000000UL
 #define TCR_TG0_64K		0x0000000000004000UL
@@ -90,21 +93,23 @@ extern vm_offset_t kernel_virtual_end;
 #define TCR_TG1_4K		0x0000000080000000UL
 #define TCR_TG1_64K		0x00000000c0000000UL
 
-#define TCR_VALUE		(TCR_T0SZ(36) | TCR_TG0_4K | TCR_T1SZ(36) | TCR_TG1_4K)
+#define TCR_VALUE		(TCR_T0SZ(VM_AARCH64_T0SZ) | TCR_TG0_4K | TCR_T1SZ(VM_AARCH64_T1SZ) | TCR_TG1_4K)
 
 #define SCTLR_M			0x0000000000000001UL	/* enable MMU */
 #define SCTLR_A			0x0000000000000002UL	/* enable alignment checking */
 #define SCTLR_SA		0x0000000000000008UL	/* enable SP alignment checking in EL1 */
 #define SCTLR_SA0		0x0000000000000010UL	/* enable SP alignment checking in EL0 */
 #define SCTLR_ENDB		0x0000000000002000UL	/* PAC */
+#define SCTLR_UCT		0x0000000000008000UL	/* allow EL0 to access CTR_EL0 */
 #define SCTLR_SPAN		0x0000000000800000UL	/* set psate.PAN upon an exception to EL1 */
+#define SCTLR_UCI		0x0000000004000000UL	/* allow EL0 to issue cache maintenance instructions */
 #define SCTLR_ENDA		0x0000000008000000UL	/* PAC */
 #define SCTLR_ENIB		0x0000000040000000UL	/* PAC */
 #define SCTLR_ENIA		0x0000000080000000UL	/* PAC */
 #define SCTLR_BT0		0x0000000800000000UL	/* enable BTI-on-PACI?SP traps in EL0 */
 #define SCTLR_BT1		0x0000001000000000UL	/* enable BTI-on-PACI?SP traps in EL1 */
 
-#define SCTLR_VALUE		(SCTLR_M | SCTLR_SA | SCTLR_SA0 /*| SCTLR_SPAN*/ | SCTLR_BT1)
+#define SCTLR_VALUE		(SCTLR_M | SCTLR_SA | SCTLR_SA0 | SCTLR_UCT | SCTLR_UCI /*| SCTLR_SPAN*/ | SCTLR_BT1)
 
 extern void load_ttbr0(pmap_t p);
 

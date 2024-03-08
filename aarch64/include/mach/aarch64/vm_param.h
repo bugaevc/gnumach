@@ -24,7 +24,7 @@
 #define BYTE_SIZE	8	/* byte size in bits */
 
 #define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x1000000000ULL)
+#define VM_MAX_ADDRESS		(0x1000000000000ULL)
 #define PAGE_SHIFT		12
 
 #endif	/* _MACH_AARCH64_VM_PARAM_H_ */
