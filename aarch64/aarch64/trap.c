@@ -48,7 +48,7 @@ static vm_prot_t esr_to_fault_type(unsigned long esr)
 {
 	switch (ESR_EC(esr)) {
 		case ESR_EC_IABT_LOWER_EL:
-			return VM_PROT_READ | VM_PROT_EXECUTE;
+			return /*VM_PROT_READ |*/ VM_PROT_EXECUTE;
 		case ESR_EC_DABT_LOWER_EL:
 		case ESR_EC_DABT_SAME_EL:
 			if (esr & ESR_DABT_WNR)
@@ -61,10 +61,13 @@ static vm_prot_t esr_to_fault_type(unsigned long esr)
 
 static void user_page_fault_continue(kern_return_t kr)
 {
+	pcb_t		pcb;
+
 	if (kr == KERN_SUCCESS)
 		thread_exception_return();
 
-	exception(EXC_BAD_ACCESS, kr, 0x1234);
+	pcb = current_thread()->pcb;
+	exception(EXC_BAD_ACCESS, kr, pcb->far);
 }
 
 void trap_aarch32(void)

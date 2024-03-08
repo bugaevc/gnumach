@@ -63,10 +63,8 @@ extern vm_offset_t kernel_virtual_end;
 #define AARCH64_PTE_MAIR_INDEX(i) ((i) << 2)		/* cache policies, as an index into MAIR table */
 
 /* Access permissions */
-#define AARCH64_PTE_UNO_PRW	0x0000000000000000UL	/* no unprivileged access, R/W privileged */
-#define AARCH64_PTE_URW_PRW	0x0000000000000040UL	/* R/W both privileged and unprivileged */
-#define AARCH64_PTE_UNO_PRO	0x0000000000000080UL	/* no unprivileged access, R/O privileged */
-#define AARCH64_PTE_URO_PRO	0x00000000000000c0UL	/* R/O both privileged and unprivileged */
+#define AARCH64_PTE_EL0_ACCESS	0x0000000000000040UL	/* EL0 can access (read or write, subject to READ_ONLY) */
+#define AARCH64_PTE_READ_ONLY	0x0000000000000080UL	/* can not be written */
 
 /* Shareability */
 #define AARCH64_PTE_NON_SH	0x0000000000000000UL	/* non-shareable */
@@ -121,6 +119,12 @@ extern void load_ttbr0(pmap_t p);
 #define pmap_phys_address(frame)	(frame)
 #define pmap_phys_to_frame(phys)        1234
 #define pmap_copy(dst_pmap,src_pmap,dst_addr,len,src_addr)
+
+static inline boolean_t	pmap_is_modified(phys_addr_t) { return FALSE; }
+static inline boolean_t	pmap_is_referenced(phys_addr_t) { return FALSE; }
+static inline void	pmap_clear_modify(phys_addr_t) {}
+static inline void	pmap_clear_reference(phys_addr_t) {}
+
 
 struct dtb_node;
 extern void pmap_discover_physical_memory(const struct dtb_node *node);
