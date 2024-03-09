@@ -30,6 +30,7 @@ if HOST_aarch64
 libkernel_a_SOURCES += \
         aarch64/aarch64/ast.h \
         aarch64/aarch64/boot.S \
+        aarch64/aarch64/conf.c \
         aarch64/aarch64/cpu_number.h \
 	aarch64/aarch64/cswitch.S \
 	aarch64/aarch64/fpu.h \

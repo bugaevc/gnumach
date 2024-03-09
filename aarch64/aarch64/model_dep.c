@@ -348,3 +348,20 @@ void machine_exec_boot_script(void)
 		panic("Failed to execute boot script: %s\n", boot_script_error_string(err));
 	/* TODO free memory */
 }
+
+vm_offset_t timemmap(dev_t dev, vm_offset_t off, vm_prot_t prot)
+{
+	extern time_value_t	*mtime;
+
+	if (prot != VM_PROT_READ || off != 0)
+		return (vm_offset_t) -1;
+	return pmap_extract(kernel_pmap, (vm_offset_t) mtime);
+}
+
+vm_offset_t memmmap(dev_t dev, vm_offset_t off, vm_prot_t prot)
+{
+	if (!vm_page_aligned(off))
+		return -1;
+
+	return off;
+}

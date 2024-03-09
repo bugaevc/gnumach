@@ -89,7 +89,7 @@ NACRO_END
 
 #else
 
-#define SPLVM(spl)	spl = 0
+#define SPLVM(spl)	(spl) = 0
 #define SPLX(spl)	(void) (spl)
 
 #define PMAP_READ_LOCK(pmap, spl)	SPLVM(spl)
@@ -458,8 +458,10 @@ static void pmap_destroy_table(
 	if (!last_level) {
 		for (index = 0; index < table_size; index++) {
 			entry = table[index];
-			if (!(entry & AARCH64_PTE_VALID))
+			if (!(entry & AARCH64_PTE_VALID)) {
+				assert(entry == 0);
 				continue;
+			}
 			if (entry & AARCH64_PTE_TABLE) {
 				next_table = (pt_entry_t*)(entry & AARCH64_PTE_ADDR_MASK);
 				assert(next_table != PT_ENTRY_NULL);
@@ -523,7 +525,7 @@ static kern_return_t pmap_walk(
 	pt_entry_t	*table,
 	vm_offset_t	v,
 	int		significant_bits,
-	int		spl,
+	int		*spl,
 	boolean_t	create,
 	vm_prot_t	prot,
 	pt_entry_t	**out_entry)
@@ -544,6 +546,7 @@ static kern_return_t pmap_walk(
 Retry:
 	entry = table[index];
 	if (!(entry & AARCH64_PTE_VALID)) {
+		assert(entry == 0);
 		if (!create)
 			return KERN_INVALID_ADDRESS;
 
@@ -553,7 +556,7 @@ Retry:
 			 *	Allocate and clear that now.  Unlock pmap
 			 *	while trying to allocate.
 			 */
-			PMAP_READ_UNLOCK(pmap, spl);
+			PMAP_READ_UNLOCK(pmap, *spl);
 			if (!pmap_initialized) {
 				next_table = (pt_entry_t*)phystokv(vm_page_bootalloc(PAGE_SIZE));
 			} else {
@@ -561,7 +564,7 @@ Retry:
 					VM_PAGE_WAIT(0);
 			}
 			memset(next_table, 0, PAGE_SIZE);
-			PMAP_READ_LOCK(pmap, spl);
+			PMAP_READ_LOCK(pmap, *spl);
 			entry = table[index];
 			if (entry & AARCH64_PTE_VALID) {
 				/*
@@ -573,10 +576,10 @@ Retry:
 				 *	they use appropriate locking at a higher
 				 *	level (vm_map).
 				 */
-				PMAP_READ_UNLOCK(pmap, spl);
+				PMAP_READ_UNLOCK(pmap, *spl);
 				assert(pmap_initialized);
 				kmem_cache_free(&table_cache, (vm_offset_t) next_table);
-				PMAP_READ_LOCK(pmap, spl);
+				PMAP_READ_LOCK(pmap, *spl);
 				goto Retry;
 			}
 			entry = kvtophys(next_table) | AARCH64_PTE_TABLE;
@@ -632,6 +635,7 @@ static void pmap_walk_range(
 	for (v = sva; v < eva && index < table_size; v += (1 << next_sb), index++) {
 		entry = table[index];
 		if (!(entry & AARCH64_PTE_VALID)) {
+			assert(entry == 0);
 			callback(v, PT_ENTRY_NULL, data);
 		} else if (!(entry & AARCH64_PTE_TABLE) || last_level) {
 			callback(v, &table[index], data);
@@ -659,147 +663,46 @@ static int pmap_root_sb(vm_offset_t v)
 	return VM_AARCH64_T0SZ;
 }
 
-/*
- *	Insert the given physical page (p) at
- *	the specified virtual address (v) in the
- *	target physical map with the protection requested.
- *
- *	If specified, the page will be wired down, meaning
- *	that the related pte can not be reclaimed.
- *
- *	NB:  This is the only routine which MAY NOT lazy-evaluate
- *	or lose information.  That is, this routine must actually
- *	insert this page into the given map NOW.
- */
-void pmap_enter(
+static void pv_link(
 	pmap_t		pmap,
-	vm_offset_t	v,
 	phys_addr_t	pa,
-	vm_prot_t	prot,
-	boolean_t	wired)
-{
-	kern_return_t	kr;
-	pt_entry_t	*entry;
-	pv_entry_t	pv_e, pv_h;
-	int		spl;
-	unsigned long	pai;
-	boolean_t	was_present;
-
-	assert(pmap != NULL);
-	assert(pa != vm_page_fictitious_addr);
-
-	if (pmap == kernel_pmap && (v < kernel_virtual_start || v >= kernel_virtual_end))
-		panic("pmap_enter(%#016.lx, %#llx) falls in physical memory area!\n", (unsigned long) v, (unsigned long long) pa);
-
-	if (pmap != kernel_pmap && v >= kernel_virtual_start)
-		panic("pmap_enter(%#016.lx, %#llx) for a non-kernel pmap?\n", (unsigned long) v, (unsigned long long) pa);
-
-	PMAP_READ_LOCK(pmap, spl);
-
-	kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), spl, TRUE, prot, &entry);
-	assert(kr == KERN_SUCCESS);
-	was_present = ((*entry) & AARCH64_PTE_ADDR_MASK) != 0;
-	*entry = ((*entry) & ~AARCH64_PTE_ADDR_MASK & ~AARCH64_PTE_PROT_MASK) | (pt_entry_t)pa | pmap_prot(v, prot);
-
-	if (!was_present) {
-		pmap->stats.resident_count++;
-		if (valid_page(pa)) {
-			pv_e = PV_ENTRY_NULL;
-			do {
-				pai = pa_index(pa);
-				// LOCK_PVH(pai);
-				pv_h = pai_to_pvh(pai);
-				if (pv_h->pmap == NULL) {
-					pv_h->pmap = pmap;
-					pv_h->va = v;
-					pv_h->next = PV_ENTRY_NULL;
-				} else {
-					if (pv_e == PV_ENTRY_NULL)
-						pv_e = pv_alloc();
-					if (pv_e == PV_ENTRY_NULL) {
-						// UNLOCK_VH(pai);
-						PMAP_READ_UNLOCK(pmap, spl);
-						pv_e = (pv_entry_t) kmem_cache_alloc(&pv_list_cache);
-						continue;
-					}
-					pv_e->pmap = pmap;
-					pv_e->va = v;
-					pv_e->next = pv_h->next;
-					pv_h->next = pv_e;
-					pv_e = PV_ENTRY_NULL;
-				}
-				// UNLOCK_VH(pai);
-			} while (FALSE);
-			if (pv_e != PV_ENTRY_NULL)
-				pv_free(pv_e);
-		}
-	}
-
-	PMAP_READ_UNLOCK(pmap, spl);
-
-	cache_flush();
-}
-
-
-phys_addr_t pmap_extract(
-	pmap_t		pmap,
-	vm_offset_t	v)
-{
-	kern_return_t	kr;
-	pt_entry_t	*entry;
-	phys_addr_t	pa;
-	int		spl;
-
-	SPLVM(spl);
-	simple_lock(&pmap->lock);
-
-	kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), spl, FALSE, VM_PROT_NONE, &entry);
-	if (kr != KERN_SUCCESS)
-		pa = 0;
-	pa = (*entry) & AARCH64_PTE_ADDR_MASK;
-	simple_unlock(&pmap->lock);
-	SPLX(spl);
-	return pa;
-}
-
-static void pmap_protect_callback(
 	vm_offset_t	v,
-	pt_entry_t	*entry,
-	void		*data)
+	spl_t		*spl)
 {
-	pt_entry_t	prot = (pt_entry_t) data;
+	pv_entry_t	pv_e, pv_h;
+	unsigned long	pai;
 
-	if (entry == PT_ENTRY_NULL || !(*entry & AARCH64_PTE_VALID))
+	if (!valid_page(pa))
 		return;
-	/*
-	 *	Reduce the allowed protection, but never increase it.
-	 */
-	*entry &= prot;
-}
 
-void pmap_protect(
-	pmap_t		pmap,
-	vm_offset_t	sva,
-	vm_offset_t	eva,
-	vm_prot_t	prot)
-{
-	pt_entry_t	*table;
-	int		spl;
-
-	assert(sva < eva);
-
-	SPLVM(spl);
-	simple_lock(&pmap->lock);
-
-	table = pmap_table(pmap, sva);
-	assert(pmap_table(pmap, eva - 1) == table);
-
-	pmap_walk_range(table, sva, eva, pmap_root_sb(sva), pmap_protect_callback, (void *) pmap_prot(sva, prot));
-
-	simple_unlock(&pmap->lock);
-	SPLX(spl);
-
-	cache_flush();
+	pv_e = PV_ENTRY_NULL;
+Again:
+	pai = pa_index(pa);
+	// LOCK_PVH(pai);
+	pv_h = pai_to_pvh(pai);
+	if (pv_h->pmap == NULL) {
+		pv_h->pmap = pmap;
+		pv_h->va = v;
+		pv_h->next = PV_ENTRY_NULL;
+	} else {
+		if (pv_e == PV_ENTRY_NULL)
+			pv_e = pv_alloc();
+		if (pv_e == PV_ENTRY_NULL) {
+			// UNLOCK_VH(pai);
+			PMAP_READ_UNLOCK(pmap, *spl);
+			pv_e = (pv_entry_t) kmem_cache_alloc(&pv_list_cache);
+			PMAP_READ_LOCK(pmap, *spl);
+			goto Again;
+		}
+		pv_e->pmap = pmap;
+		pv_e->va = v;
+		pv_e->next = pv_h->next;
+		pv_h->next = pv_e;
+		pv_e = PV_ENTRY_NULL;
+	}
+	// UNLOCK_VH(pai);
+	if (pv_e != PV_ENTRY_NULL)
+		pv_free(pv_e);
 }
 
 static void pv_unlink(
@@ -840,6 +743,119 @@ static void pv_unlink(
 		pv_free(pv_e);
 	}
 	// UNLOCK_PVH(pai);
+}
+
+
+/*
+ *	Insert the given physical page (p) at
+ *	the specified virtual address (v) in the
+ *	target physical map with the protection requested.
+ *
+ *	If specified, the page will be wired down, meaning
+ *	that the related pte can not be reclaimed.
+ *
+ *	NB:  This is the only routine which MAY NOT lazy-evaluate
+ *	or lose information.  That is, this routine must actually
+ *	insert this page into the given map NOW.
+ */
+void pmap_enter(
+	pmap_t		pmap,
+	vm_offset_t	v,
+	phys_addr_t	pa,
+	vm_prot_t	prot,
+	boolean_t	wired)
+{
+	kern_return_t	kr;
+	pt_entry_t	*entry;
+	int		spl;
+	boolean_t	was_present;
+
+	assert(pmap != NULL);
+	assert(pa != vm_page_fictitious_addr);
+
+	if (pmap == kernel_pmap && (v < kernel_virtual_start || v >= kernel_virtual_end))
+		panic("pmap_enter(%#016.lx, %#llx) falls in physical memory area!\n", (unsigned long) v, (unsigned long long) pa);
+
+	if (pmap != kernel_pmap && v >= kernel_virtual_start)
+		panic("pmap_enter(%#016.lx, %#llx) for a non-kernel pmap?\n", (unsigned long) v, (unsigned long long) pa);
+
+	PMAP_READ_LOCK(pmap, spl);
+
+	kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), &spl, TRUE, prot, &entry);
+	assert(kr == KERN_SUCCESS);
+	was_present = ((*entry) & AARCH64_PTE_ADDR_MASK) != 0;
+	*entry = ((*entry) & ~AARCH64_PTE_ADDR_MASK & ~AARCH64_PTE_PROT_MASK) | (pt_entry_t)pa | pmap_prot(v, prot);
+
+	if (!was_present) {
+		pmap->stats.resident_count++;
+		pv_link(pmap, pa, v, &spl);
+	}
+
+	PMAP_READ_UNLOCK(pmap, spl);
+
+	cache_flush();
+}
+
+
+phys_addr_t pmap_extract(
+	pmap_t		pmap,
+	vm_offset_t	v)
+{
+	kern_return_t	kr;
+	pt_entry_t	*entry;
+	phys_addr_t	pa;
+	int		spl;
+
+	SPLVM(spl);
+	simple_lock(&pmap->lock);
+
+	kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), &spl, FALSE, VM_PROT_NONE, &entry);
+	if (kr != KERN_SUCCESS)
+		pa = 0;
+	pa = (*entry) & AARCH64_PTE_ADDR_MASK;
+	simple_unlock(&pmap->lock);
+	SPLX(spl);
+	return pa;
+}
+
+static void pmap_protect_callback(
+	vm_offset_t	v,
+	pt_entry_t	*entry,
+	void		*data)
+{
+	pt_entry_t	prot = (pt_entry_t) data;
+
+	if (entry == PT_ENTRY_NULL || !(*entry & AARCH64_PTE_VALID))
+		return;
+	/*
+	 *	Reduce the allowed protection, but never increase it.
+	 */
+	*entry &= (prot | ~AARCH64_PTE_PROT_MASK);
+}
+
+void pmap_protect(
+	pmap_t		pmap,
+	vm_offset_t	sva,
+	vm_offset_t	eva,
+	vm_prot_t	prot)
+{
+	pt_entry_t	*table;
+	int		spl;
+
+	assert(sva < eva);
+
+	SPLVM(spl);
+	simple_lock(&pmap->lock);
+
+	table = pmap_table(pmap, sva);
+	assert(pmap_table(pmap, eva - 1) == table);
+
+	pmap_walk_range(table, sva, eva, pmap_root_sb(sva), pmap_protect_callback, (void *) pmap_prot(sva, prot));
+
+	simple_unlock(&pmap->lock);
+	SPLX(spl);
+
+	cache_flush();
 }
 
 static void pmap_remove_callback(
@@ -913,7 +929,7 @@ void pmap_page_protect(
 		pmap = pv_e->pmap;
 		simple_lock(&pmap->lock);
 		v = pv_e->va;
-		kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), spl, FALSE, VM_PROT_NONE, &entry);
+		kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), &spl, FALSE, VM_PROT_NONE, &entry);
 		assert(kr == KERN_SUCCESS);
 		assert((*entry) & AARCH64_PTE_VALID);
 		assert(((*entry) & AARCH64_PTE_ADDR_MASK) == phys);

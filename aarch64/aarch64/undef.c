@@ -1,9 +1,5 @@
 void constab() {}
 void delay() {}
-void dev_indirect_count() {}
-void dev_indirect_list() {}
-void dev_name_count() {}
-void dev_name_list() {}
 void __disable_irq() {}
 void dump_ss() {}
 void __enable_irq() {}

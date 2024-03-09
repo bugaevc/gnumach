@@ -53,4 +53,7 @@ extern void machine_relax (void);
  */
 extern void c_boot_entry(dtb_t dtb) __attribute__ ((noreturn));
 
+extern vm_offset_t timemmap(dev_t dev, vm_offset_t off, vm_prot_t prot);
+extern vm_offset_t memmmap(dev_t dev, vm_offset_t off, vm_prot_t prot);
+
 #endif /* _AARCH64_MODEL_DEP_H_ */
