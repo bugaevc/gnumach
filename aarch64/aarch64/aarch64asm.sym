@@ -15,8 +15,6 @@ offset	aarch64_thread_state	ATS	pc
 offset	aarch64_thread_state	ATS	tpidr_el0
 offset	aarch64_thread_state	ATS	cpsr
 
-expr	&((pcb_t)0)->skip_syscall_rv-(char*)&((pcb_t)0)->ats	ATS_SKIP_SYSCALL_RV
-
 offset	percpu			pc	active_thread	PERCPU_ACTIVE_THREAD
 offset	percpu			pc	active_stack	PERCPU_ACTIVE_STACK
 offset	percpu			pc	curr_ipl	PERCPU_CURR_IPL

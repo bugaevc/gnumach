@@ -43,7 +43,6 @@ typedef struct pcb {
 	struct aarch64_thread_state ats;
 	long	esr;
 	long	far;
-	char	skip_syscall_rv /* : 1 */;
 } *pcb_t;
 
 #define USER_REGS(thread)		(&(thread)->pcb->ats)

@@ -243,13 +243,7 @@ END(_fpu_load_state)
  */
 ENTRY(thread_syscall_return)
 	SWITCH_TO_PCB_STACK(x1)
-	ldrb	w1, [sp, #(ATS_SKIP_SYSCALL_RV)]
-	tbnz	w1, 0, 0f
 	str	x0, [sp, #(ATS_X)]
-	b	return_to_user
-0:
-	mov	w1, #0
-	strb	w1, [sp, #(ATS_SKIP_SYSCALL_RV)]
 	b	return_to_user
 END(thread_syscall_return)
 
@@ -466,8 +460,6 @@ ENTRY(handle_syscall)
 	blr	x11
 
 	ldr	x12, [x29, #16]
-	ldrb	w1, [x12, #(ATS_SKIP_SYSCALL_RV)]
-	tbnz	w1, 0, 1f
 	str	x0, [x12, #(ATS_X)]		/* put return code into user's x0 */
 	mov	w0, #1				/* return TRUE */
 
@@ -475,11 +467,6 @@ ENTRY(handle_syscall)
 	mov	sp, x29
 	ldp	x29, x30, [sp], #32
 	ret
-1:
-	mov	w1, #0
-	strb	w1, [x12, #(ATS_SKIP_SYSCALL_RV)]
-	mov	w0, #1
-	b	.out
 .load_stack_args:
 	sub	x10, x10, #8
 	mov	x0, x10
