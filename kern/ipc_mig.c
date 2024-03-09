@@ -903,9 +903,16 @@ kern_return_t thread_set_self_state(
 {
 	thread_t	t = current_thread();
 	kern_return_t	kr;
+	natural_t	new_state_copy[1024];
+
+	if (new_state_count <= 0 || new_state_count > 1024)
+		return KERN_INVALID_ARGUMENT;
+
+	if (copyin(new_state, new_state_copy, new_state_count * sizeof(natural_t)))
+		return KERN_INVALID_ARGUMENT;
 
 	thread_set_syscall_return(t, KERN_SUCCESS);
-	kr = thread_setstatus(t, flavor, new_state, new_state_count);
+	kr = thread_setstatus(t, flavor, new_state_copy, new_state_count);
 	if (kr == KERN_SUCCESS)
 		thread_exception_return();
 
