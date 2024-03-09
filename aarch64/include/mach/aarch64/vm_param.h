@@ -21,10 +21,10 @@
 
 #include <mach/machine/vm_types.h>
 
-#define BYTE_SIZE	8	/* byte size in bits */
+#ifdef KERNEL
+#include "aarch64/vm_param.h"
+#endif
 
-#define VM_MIN_ADDRESS		(0ULL)
-#define VM_MAX_ADDRESS		(0x1000000000000ULL)
-#define PAGE_SHIFT		12
+#define BYTE_SIZE	8	/* byte size in bits */
 
 #endif	/* _MACH_AARCH64_VM_PARAM_H_ */

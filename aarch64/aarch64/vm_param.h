@@ -19,10 +19,12 @@
 #ifndef _AARCH64_VM_PARAM_
 #define _AARCH64_VM_PARAM_
 
-#include <mach/vm_param.h>
-
+#define PAGE_SHIFT 12
 #define PAGE_SIZE (1 << PAGE_SHIFT)
 #define KERNEL_STACK_SIZE  (4*PAGE_SIZE)
+
+#define VM_MIN_ADDRESS		(0ULL)
+#define VM_MAX_ADDRESS		(0x1000000000000ULL)
 
 #define VM_MIN_USER_ADDRESS VM_MIN_ADDRESS
 #define VM_MAX_USER_ADDRESS VM_MAX_ADDRESS
@@ -48,5 +50,7 @@
 #define kvtophys(a)	((vm_offset_t)(a) - VM_MIN_KERNEL_ADDRESS)
 
 #define VM_KERNEL_MAP_SIZE (512 * 1024 * 1024)
+
+#include <mach/vm_param.h>
 
 #endif /* _AARCH64_VM_PARAM_ */

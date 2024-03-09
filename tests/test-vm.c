@@ -77,8 +77,12 @@ static void test_wire()
 
 int main(int argc, char *argv[], int envc, char *envp[])
 {
+#ifdef VM_MIN_ADDRESS
   printf("VM_MIN_ADDRESS=0x%p\n", VM_MIN_ADDRESS);
+#endif
+#ifdef VM_MAX_ADDRESS
   printf("VM_MAX_ADDRESS=0x%p\n", VM_MAX_ADDRESS);
+#endif
   test_wire();
   test_memobj();
   return 0;
