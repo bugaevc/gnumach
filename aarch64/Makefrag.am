@@ -37,6 +37,7 @@ libkernel_a_SOURCES += \
 	aarch64/aarch64/fpu.c \
 	aarch64/aarch64/hwcaps.h \
 	aarch64/aarch64/hwcaps.c \
+	aarch64/aarch64/irq.c \
 	aarch64/aarch64/locore.h \
 	aarch64/aarch64/locore.S \
 	aarch64/aarch64/mach_aarch64.c \

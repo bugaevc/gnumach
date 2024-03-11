@@ -59,7 +59,7 @@ struct dtb_ranges_map {
 	const void	*ranges;
 	vm_size_t	ranges_length;
 
-	struct dtb_ranges_map *next;
+	const struct dtb_ranges_map *next;
 };
 
 typedef const struct dtb_ranges_map *dtb_ranges_map_t;

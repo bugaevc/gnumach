@@ -43,6 +43,7 @@ typedef struct pcb {
 	struct aarch64_thread_state ats;
 	long	esr;
 	long	far;
+	int	in_irq_from_el0 : 1;
 } *pcb_t;
 
 #define USER_REGS(thread)		(&(thread)->pcb->ats)

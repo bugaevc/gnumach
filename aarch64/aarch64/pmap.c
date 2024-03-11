@@ -350,10 +350,10 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	);
 
 	/* Unmap the identity mapping, we no longer need it.  */
-	ttbr0_l0_base[1] = 0;
+	ttbr0_l0_base[kernel_block_0_index] = 0;
 	cache_flush();
 
-	pmap_ungrab_page((vm_offset_t) phys_ttbr0_l0_base);
+	// pmap_ungrab_page((vm_offset_t) phys_ttbr0_l0_base);
 }
 
 void pmap_bootstrap_misc(void)

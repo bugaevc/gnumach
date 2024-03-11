@@ -2,7 +2,7 @@
 #include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
 #include "aarch64/fpu.h"
-#include "arm/gic-v2.h"		/* FIXME */
+#include "aarch64/irq.h"
 #include <mach/exception.h>
 #include <vm/vm_fault.h>
 #include <kern/printf.h>
@@ -80,16 +80,13 @@ void trap_irq_el0(void)
 {
 	int s = spl7_irq();
 	assert(s == SPL0);
+	current_thread()->pcb->in_irq_from_el0 = TRUE;
 
-	if (gic_v2_check_irq(30)) {
-		printf(",");
-		cnt_clock_interrupt(TRUE, current_thread()->pcb->ats.pc);
-		gic_v2_clear_irq(30);
-	} else {
-		printf("Another IRQ?\n");
-	}
+	assert(root_irq_src);
+	root_irq_src->handle_irq(root_irq_src);
 
 	spl0_irq();
+	current_thread()->pcb->in_irq_from_el0 = FALSE;
 
 	thread_exception_return();
 }
@@ -184,13 +181,8 @@ void trap_irq_el1(void)
 	int s = spl7_irq();
 	assert(s == SPL0);
 
-	if (gic_v2_check_irq(30)) {
-		printf(".");
-		cnt_clock_interrupt(FALSE, 0);
-		gic_v2_clear_irq(30);
-	} else {
-		printf("Another IRQ?\n");
-	}
+	assert(root_irq_src);
+	root_irq_src->handle_irq(root_irq_src);
 
 	spl0_irq();
 }

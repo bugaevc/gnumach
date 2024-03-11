@@ -19,6 +19,11 @@
 #ifndef _AARCH64_IRQ_
 #define _AARCH64_IRQ_
 
+#include <device/dtb.h>
+
+/* Legacy intr cruft to make device/intr.h compile, do not actually use this */
+#ifdef __INTR_H__
+
 #define NINTR 1234
 
 typedef unsigned int irq_t;
@@ -37,5 +42,33 @@ void __enable_irq (irq_t irq);
 void __disable_irq (irq_t irq);
 
 extern void unmask_irq (unsigned int irq_nr);
+
+#endif /* device/intr.h legacy */
+
+
+struct irq_src {
+	void	(*handle_irq)(struct irq_src *);
+};
+
+typedef enum {
+	IRQ_DESC_TYPE_DT = 0,
+} irq_desc_type;
+
+struct irq_desc {
+	irq_desc_type	type;
+};
+
+struct irq_desc_dt {
+	irq_desc_type	type;
+	dtb_prop_t	prop;
+};
+
+struct irq_ctlr {
+	void	(*add_src)(struct irq_ctlr		*ctlr,
+			   struct irq_src		*src,
+			   const struct irq_desc	*desc);
+};
+
+extern struct irq_src	*root_irq_src;
 
 #endif /* _AARCH64_IRQ_ */

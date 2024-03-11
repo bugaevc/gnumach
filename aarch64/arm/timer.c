@@ -1,7 +1,9 @@
 #include "arm/timer.h"
+#include "aarch64/irq.h"
 #include <kern/assert.h>
 #include "aarch64/mach_param.h" /* HZ */
 #include <kern/mach_clock.h>
+#include <string.h>
 
 static unsigned cnt_freq;			/* frequency, timer ticks per second */
 static volatile unsigned long long cnt_pct;
@@ -29,18 +31,53 @@ void startrtclock(void)
 	set_up_next_interrupt();
 }
 
-void cnt_clock_interrupt(
-	boolean_t	usermode,
-	vm_offset_t	pc)
+static void cnt_handle_irq(struct irq_src *)
 {
 	unsigned long	last_pct = cnt_pct;
 	unsigned int	usec;
+	boolean_t	from_el0;
 
 	asm volatile(
 		"isb\n\t"
 		"mrs	%0, CNTPCT_EL0"
 		: "=r"(cnt_pct));
 	usec = (cnt_pct - last_pct) * 1000000 / cnt_freq;
-	clock_interrupt(usec, usermode, FALSE /*??*/, pc);
+
+	from_el0 = current_thread()->pcb && current_thread()->pcb->in_irq_from_el0;
+	if (from_el0)
+		clock_interrupt(usec, TRUE, FALSE, current_thread()->pcb->ats.pc);
+	else
+		clock_interrupt(usec, FALSE, FALSE, 0);
+
 	set_up_next_interrupt();
+}
+
+void cnt_set_interrupt_parent(dtb_node_t node, struct irq_ctlr *ctlr)
+{
+	struct dtb_prop		prop;
+	struct irq_desc_dt	desc;
+	static struct irq_src	src;
+
+	prop = dtb_node_find_prop(node, "interrupts");
+	assert(!DTB_IS_SENTINEL(prop));
+
+	desc.type = IRQ_DESC_TYPE_DT;
+	desc.prop = &prop;
+
+	src.handle_irq = cnt_handle_irq;
+	ctlr->add_src(ctlr, &src, (struct irq_desc *) &desc);
+}
+
+void cnt_init(dtb_node_t node)
+{
+	struct dtb_prop	prop;
+
+	asm("mrs %0, CNTFRQ_EL0" : "=r"(cnt_freq));
+
+	dtb_for_each_prop (*node, prop) {
+		if (!strcmp(prop.name, "clock-frequency")) {
+			vm_offset_t	off = 0;
+			cnt_freq = dtb_prop_read_cells(&prop, 1, &off);
+		}
+	}
 }
