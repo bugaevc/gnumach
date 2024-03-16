@@ -18,14 +18,15 @@ static void fpen(boolean_t enable)
 {
 	uint64_t	cpacr;
 
-	asm("mrs %0, cpacr_el1" : "=r"(cpacr));
+	asm("mrs %0, CPACR_EL1" : "=r"(cpacr));
 
 	if (enable)
 		cpacr = (cpacr & ~FPEN_TRAP_MASK) | FPEN_TRAP_NONE;
 	else
 		cpacr = (cpacr & ~FPEN_TRAP_MASK) | FPEN_TRAP_EL01;
 
-	asm volatile("msr cpacr_el1, %0" :: "r"(cpacr));
+	asm volatile("msr CPACR_EL1, %0" :: "r"(cpacr));
+	asm volatile("isb");
 }
 
 void fpu_switch_context(thread_t new)

@@ -28,22 +28,26 @@ struct aarch64_kernel_state {
 };
 #define AKS_REG(aks, reg)		((aks)->k_regs[(reg) - 19])
 
+/*
+ *	The state saved on the stack when taking an exception from
+ *	EL1.  It is laid out like a normal call frame, to enable
+ *	backtracing through exceptions taken from EL1.  We only have
+ *	to save the caller-saved registers, plus x29 to make it look
+ *	like a call frame.
+ */
 struct aarch64_kernel_exception_state {
-	long	pc;
+	long	x29;
+	long	pc;		/* "return address", x30 in regular subroutine calls */
 	long	cpsr;
-	long	regs[20];	/* x0 to x18, x30, in reverse order */
+	long	x[19];		/* x0 to x18 */
+	long	x30;
 };
 
 typedef struct pcb {
-	/* Leave enough space for dumping kernel
-	   state while on the PCB stack.  */
-	struct aarch64_kernel_exception_state akes_buffer;
-
 	struct aarch64_float_state *afs;
 	struct aarch64_thread_state ats;
 	long	esr;
 	long	far;
-	int	in_irq_from_el0 : 1;
 } *pcb_t;
 
 #define USER_REGS(thread)		(&(thread)->pcb->ats)

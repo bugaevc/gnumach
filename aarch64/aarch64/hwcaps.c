@@ -118,12 +118,23 @@
 #define ID_AA64ISAR1_I8MM_NONE		0x0			/* Int8 matrix multiplication not supported */
 #define ID_AA64ISAR1_I8MM_I8MM		0x1			/* Int8 matrix multiplication supported */
 
+#define ID_AA64MMFR1_ASID(v)		(((v) >> 4) & 0xf)
+#define ID_AA64MMFR1_PAN(v)		(((v) >> 20) & 0xf)
+
+#define ID_AA64MMFR1_ASID_8		0x0			/* 8-bit ASID */
+#define ID_AA64MMFR1_ASID_16		0x2			/* 16-bit ASID */
+#define ID_AA64MMFR1_PAN_NONE		0x0			/* PAN not supported */
+#define ID_AA64MMFR1_PAN_PAN		0x1			/* PAN supported */
+#define ID_AA64MMFR1_PAN_PAN2		0x2			/* PAN + PAN2 supported */
+#define ID_AA64MMFR1_PAN_PAN3		0x3			/* PAN + PAN2 + PAN3 supported */
+
 #define ID_AA64MMFR2_AT(v)		(((v) >> 32) & 0xf)
 
 #define ID_AA64MMFR2_AT_NONE		0x0			/* AT not supported */
 #define ID_AA64MMFR2_AT_AT		0x1			/* AT supported */
 
 uint32_t	hwcaps[HWCAPS_COUNT];
+uint32_t	hwcap_internal;
 
 void hwcaps_init(void)
 {
@@ -131,12 +142,14 @@ void hwcaps_init(void)
 	uint64_t	id_aa64pfr1;
 	uint64_t	id_aa64isar0;
 	uint64_t	id_aa64isar1;
+	uint64_t	id_aa64mmfr1;
 	uint64_t	id_aa64mmfr2;
 
 	asm("mrs %0, id_aa64pfr0_el1" : "=r"(id_aa64pfr0));
 	asm("mrs %0, id_aa64pfr1_el1" : "=r"(id_aa64pfr1));
 	asm("mrs %0, id_aa64isar0_el1" : "=r"(id_aa64isar0));
 	asm("mrs %0, id_aa64isar1_el1" : "=r"(id_aa64isar1));
+	asm("mrs %0, id_aa64mmfr1_el1" : "=r"(id_aa64mmfr1));
 	asm("mrs %0, id_aa64mmfr2_el1" : "=r"(id_aa64mmfr2));
 
 	if (ID_AA64PFR0_FP(id_aa64pfr0) != ID_AA64PFR0_FP_NONE)
@@ -243,4 +256,14 @@ void hwcaps_init(void)
 
 	/* to be continued... */
 
+	if (ID_AA64MMFR1_PAN(id_aa64mmfr1) != ID_AA64MMFR1_PAN_NONE) {
+		/*
+		 *	PAN is supported, enable it.
+		 */
+		asm volatile(".word 0xd500419f");	/* msr PAN, #1 */
+	}
+	if (ID_AA64MMFR1_PAN(id_aa64mmfr1) >= ID_AA64MMFR1_PAN_PAN3)
+		hwcap_internal |= HWCAP_INT_EPAN;
+	if (ID_AA64MMFR1_ASID(id_aa64mmfr1) == ID_AA64MMFR1_ASID_16)
+		hwcap_internal |= HWCAP_INT_ASID16;
 }

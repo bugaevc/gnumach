@@ -29,6 +29,7 @@ typedef phys_addr_t pt_entry_t;
 
 struct pmap {
 	pt_entry_t	*l0_base;	/* TTBR0 */
+	unsigned short	asid;
 	int		ref_count;
 	decl_simple_lock_data(,lock)	/* lock on map */
 	struct pmap_statistics stats;	/* map statistics */
@@ -39,90 +40,38 @@ typedef struct pmap *pmap_t;
 #define pmap_attribute(pmap,addr,size,attr,value) (KERN_INVALID_ADDRESS)
 #define PMAP_NULL ((pmap_t) 0)
 
-#define PMAP_NMAPWINDOWS 2	/* Per CPU */
+typedef struct {
+	pt_entry_t	*entry;
+	vm_offset_t	vaddr;
+} pmap_mapwindow_t;
+
+extern pmap_mapwindow_t *pmap_get_mapwindow(pt_entry_t entry);
+extern void pmap_put_mapwindow(pmap_mapwindow_t *map);
+
+#define PMAP_NMAPWINDOWS 2	/* per CPU */
 
 extern vm_offset_t kernel_virtual_start;
 extern vm_offset_t kernel_virtual_end;
-
-/* PTE bits */
-#define AARCH64_PTE_ADDR_MASK	0x000ffffffffff000UL
-#define AARCH64_PTE_PROT_MASK	0x00600000000000c0UL
 
-/* Block or table */
-#define AARCH64_PTE_BLOCK	0x0000000000000000UL	/* points to a block of phys memory */
-#define AARCH64_PTE_TABLE	0x0000000000000002UL	/* points to a next level table */
-#define AARCH64_PTE_LEVEL3	0x0000000000000002UL	/* this is a level 3 PTE (same value as table) */
-
-#define AARCH64_PTE_VALID	0x0000000000000001UL	/* this entry is valid */
-#define AARCH64_PTE_NS		0x0000000000000020UL	/* security bit (only EL3 & secure EL1) */
-#define AARCH64_PTE_ACCESS	0x0000000000000400UL	/* if unset, trap on access */
-#define AARCH64_PTE_BTI		0x0004000000000000UL	/* enable branch target identification */
-#define AARCH64_PTE_PXN		0x0020000000000000UL	/* privileged execute never */
-#define AARCH64_PTE_UXN		0x0040000000000000UL	/* unprivileged execute never */
-
-#define AARCH64_PTE_MAIR_INDEX(i) ((i) << 2)		/* cache policies, as an index into MAIR table */
-
-/* Access permissions */
-#define AARCH64_PTE_EL0_ACCESS	0x0000000000000040UL	/* EL0 can access (read or write, subject to READ_ONLY) */
-#define AARCH64_PTE_READ_ONLY	0x0000000000000080UL	/* can not be written */
-
-/* Shareability */
-#define AARCH64_PTE_NON_SH	0x0000000000000000UL	/* non-shareable */
-#define AARCH64_PTE_OUTER_SH	0x0000000000000200UL	/* outer shareable */
-#define AARCH64_PTE_INNER_SH	0x0000000000000300UL	/* inner shareable */
-
-
-#define MAIR_NORMAL_INDEX	0
-#define MAIR_NORMAL_FLAGS	0xff
-#define MAIR_DEVICE_INDEX	1
-#define MAIR_DEVICE_FLAGS	0x00
-
-#define MAIR_VALUE_ENTRY(index, flags)		((flags) << ((index) * 8))
-#define MAIR_VALUE		(MAIR_VALUE_ENTRY(MAIR_NORMAL_INDEX, MAIR_NORMAL_FLAGS) | MAIR_VALUE_ENTRY(MAIR_DEVICE_INDEX, MAIR_DEVICE_FLAGS))
-
-#define VM_AARCH64_T0SZ		48
-#define VM_AARCH64_T1SZ		48
-
-#define TCR_T0SZ(size)		(64 - size)
-#define TCR_TG0_4K		0x0000000000000000UL
-#define TCR_TG0_64K		0x0000000000004000UL
-#define TCR_TG0_16K		0x0000000000008000UL
-
-#define TCR_T1SZ(size)		((64 - size) << 16)
-#define TCR_TG1_16K		0x0000000040000000UL
-#define TCR_TG1_4K		0x0000000080000000UL
-#define TCR_TG1_64K		0x00000000c0000000UL
-
-#define TCR_VALUE		(TCR_T0SZ(VM_AARCH64_T0SZ) | TCR_TG0_4K | TCR_T1SZ(VM_AARCH64_T1SZ) | TCR_TG1_4K)
-
-#define SCTLR_M			0x0000000000000001UL	/* enable MMU */
-#define SCTLR_A			0x0000000000000002UL	/* enable alignment checking */
-#define SCTLR_SA		0x0000000000000008UL	/* enable SP alignment checking in EL1 */
-#define SCTLR_SA0		0x0000000000000010UL	/* enable SP alignment checking in EL0 */
-#define SCTLR_ENDB		0x0000000000002000UL	/* PAC */
-#define SCTLR_UCT		0x0000000000008000UL	/* allow EL0 to access CTR_EL0 */
-#define SCTLR_SPAN		0x0000000000800000UL	/* set psate.PAN upon an exception to EL1 */
-#define SCTLR_UCI		0x0000000004000000UL	/* allow EL0 to issue cache maintenance instructions */
-#define SCTLR_ENDA		0x0000000008000000UL	/* PAC */
-#define SCTLR_ENIB		0x0000000040000000UL	/* PAC */
-#define SCTLR_ENIA		0x0000000080000000UL	/* PAC */
-#define SCTLR_BT0		0x0000000800000000UL	/* enable BTI-on-PACI?SP traps in EL0 */
-#define SCTLR_BT1		0x0000001000000000UL	/* enable BTI-on-PACI?SP traps in EL1 */
-
-#define SCTLR_VALUE		(SCTLR_M | SCTLR_SA | SCTLR_SA0 | SCTLR_UCT | SCTLR_UCI /*| SCTLR_SPAN*/ | SCTLR_BT1)
-
-extern void load_ttbr0(pmap_t p);
+extern void pmap_activate_user(pmap_t pmap);
 
 #define PMAP_ACTIVATE_KERNEL(my_cpu)
 #define PMAP_DEACTIVATE_KERNEL(my_cpu)
-#define PMAP_ACTIVATE_USER(pmap, th, my_cpu) ((void)th,(void)my_cpu,load_ttbr0(pmap))
 #define PMAP_DEACTIVATE_USER(pmap, th, my_cpu)
+
+#define PMAP_ACTIVATE_USER(pmap, th, my_cpu) 				\
+MACRO_BEGIN								\
+	(void) (th);							\
+	(void) (my_cpu);						\
+	if (likely((pmap) != kernel_pmap))				\
+		pmap_activate_user(pmap);				\
+MACRO_END
 
 #define pmap_resident_count(pmap)	((pmap)->stats.resident_count)
 
 #define pmap_kernel()                   (kernel_pmap)
 #define pmap_phys_address(frame)	(frame)
-#define pmap_phys_to_frame(phys)        1234
+#define pmap_phys_to_frame(phys)        (phys)
 #define pmap_copy(dst_pmap,src_pmap,dst_addr,len,src_addr)
 
 static inline boolean_t	pmap_is_modified(phys_addr_t) { return FALSE; }
@@ -136,14 +85,7 @@ extern void pmap_discover_physical_memory(const struct dtb_node *node);
 extern void pmap_bootstrap(void);
 extern void pmap_bootstrap_misc(void);
 
-/*
- *  pmap_zero_page zeros the specified (machine independent) page.
- */
 extern void pmap_zero_page(phys_addr_t);
-
-/*
- *  pmap_copy_page copies the specified (machine independent) pages.
- */
 extern void pmap_copy_page(phys_addr_t, phys_addr_t);
 
 #endif /* _AARCH64_PMAP_ */

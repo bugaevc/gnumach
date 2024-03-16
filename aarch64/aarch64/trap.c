@@ -5,6 +5,7 @@
 #include "aarch64/irq.h"
 #include <mach/exception.h>
 #include <vm/vm_fault.h>
+#include <vm/vm_kern.h>
 #include <kern/printf.h>
 #include <kern/thread.h>
 #include <kern/exception.h>
@@ -49,7 +50,7 @@ static vm_prot_t esr_to_fault_type(unsigned long esr)
 {
 	switch (ESR_EC(esr)) {
 		case ESR_EC_IABT_LOWER_EL:
-			return /*VM_PROT_READ |*/ VM_PROT_EXECUTE;
+			return VM_PROT_EXECUTE;
 		case ESR_EC_DABT_LOWER_EL:
 		case ESR_EC_DABT_SAME_EL:
 			if (esr & ESR_DABT_WNR)
@@ -64,7 +65,7 @@ static void user_page_fault_continue(kern_return_t kr)
 {
 	pcb_t		pcb;
 
-	if (kr == KERN_SUCCESS)
+	if (likely(kr == KERN_SUCCESS))
 		thread_exception_return();
 
 	pcb = current_thread()->pcb;
@@ -80,13 +81,13 @@ void trap_irq_el0(void)
 {
 	int s = spl7_irq();
 	assert(s == SPL0);
-	current_thread()->pcb->in_irq_from_el0 = TRUE;
+	percpu_assign(in_irq_from_el0, TRUE);
 
 	assert(root_irq_src);
 	root_irq_src->handle_irq(root_irq_src);
 
 	spl0_irq();
-	current_thread()->pcb->in_irq_from_el0 = FALSE;
+	percpu_assign(in_irq_from_el0, FALSE);
 
 	thread_exception_return();
 }
@@ -122,7 +123,7 @@ void trap_sync_exc_el0(void)
 		case ESR_EC_SVC64:
 			imm16 = esr & 0xf;
 			/* "svc #0" is a syscall */
-			if (imm16 == 0 && handle_syscall(&pcb->ats))
+			if (likely(imm16 == 0) && handle_syscall(&pcb->ats))
 				thread_exception_return();
 			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_SVC, 0);
 		case ESR_EC_MRS:
@@ -131,9 +132,10 @@ void trap_sync_exc_el0(void)
 		case ESR_EC_PAC:
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_PAC, far);
 		case ESR_EC_IABT_LOWER_EL:
-			if (ESR_IABT_IFSC(esr) >= ESR_IABT_IFSC_SYNC_EXT) {
+			if (ESR_IABT_IFSC(esr) >= ESR_IABT_IFSC_SYNC_EXT)
 				exception(EXC_BAD_INSTRUCTION, 0, 0);
-			}
+			if (far >= VM_MAX_USER_ADDRESS)
+				exception(EXC_BAD_ACCESS, KERN_INVALID_ADDRESS, far);
 			(void) vm_fault(current_map(), trunc_page(far),
 					esr_to_fault_type(esr),
 					FALSE, FALSE,
@@ -198,6 +200,7 @@ void trap_sync_exc_el1(
 	struct aarch64_kernel_exception_state	*akes)
 {
 	kern_return_t		kr;
+	vm_map_t		map;
 	const struct recovery	*rp;
 	vm_offset_t		recover_base = (vm_offset_t) &recover_table;
 
@@ -220,7 +223,28 @@ void trap_sync_exc_el1(
 			if ((far >= VM_MIN_KERNEL_ADDRESS && far < kernel_virtual_start) || far >= kernel_virtual_end)
 				panic("Kernel segfault at %p (physical memory area!)\n", (void *) far);
 
-			kr = vm_fault(current_map(), trunc_page(far),
+			if (far <= VM_MAX_USER_ADDRESS) {
+				/*
+				 *	Faulted on a user address.
+				 *	This could be a PAN failure, or the fault
+				 *	may be benign if there's a recovery handler
+				 *	at this address.
+				 */
+				boolean_t	found = FALSE;
+				for (rp = recover_table; rp < recover_table_end; rp++) {
+					if ((vm_offset_t) akes->pc == recover_base + rp->fault_addr_off) {
+						found = TRUE;
+						break;
+					}
+				}
+				if (!found)
+					panic("PAN failure at PC %p\n", (const void *) akes->pc);
+				map = current_map();
+			} else {
+				map = kernel_map;
+			}
+
+			kr = vm_fault(map, trunc_page(far),
 				      esr_to_fault_type(esr),
 				      FALSE, FALSE, NULL);
 			if (kr == KERN_SUCCESS)
@@ -236,15 +260,10 @@ void trap_sync_exc_el1(
 					/*
 					 *	Set things up for an appropriate exception() call,
 					 *	if that's what the handler wants to do.
-					 *	The last few entries in akes->regs are:
-					 *	[16] = x2
-					 *	[17] = x3
-					 *	[18] = x0
-					 *	[19] = x1
 					 */
-					akes->regs[18] = (long) EXC_BAD_ACCESS;
-					akes->regs[19] = (long) kr;
-					akes->regs[16] = (long) far;
+					akes->x[0] = (long) EXC_BAD_ACCESS;
+					akes->x[1] = (long) kr;
+					akes->x[2] = (long) far;
 					return;
 				}
 			}

@@ -43,7 +43,7 @@ static void cnt_handle_irq(struct irq_src *)
 		: "=r"(cnt_pct));
 	usec = (cnt_pct - last_pct) * 1000000 / cnt_freq;
 
-	from_el0 = current_thread()->pcb && current_thread()->pcb->in_irq_from_el0;
+	from_el0 = percpu_get(boolean_t, in_irq_from_el0);
 	if (from_el0)
 		clock_interrupt(usec, TRUE, FALSE, current_thread()->pcb->ats.pc);
 	else

@@ -327,7 +327,7 @@ void machine_exec_boot_script(void)
 	struct dtb_node 	chosen, node;
 	struct dtb_prop 	prop;
 	unsigned short		address_cells, size_cells;
-	struct bootstrap_module	bmod;
+	struct bootstrap_module	bmods[10];
 	int			i = 0, err, losers = 0;
 	const char		*args;
 	vm_offset_t		off;
@@ -338,6 +338,7 @@ void machine_exec_boot_script(void)
 
 	dtb_for_each_child (chosen, node) {
 		if (dtb_node_is_compatible(&node, "multiboot,module")) {
+			assert(i < 10);	/* 10 boot modules ought to be enough for anybody */
 			prop = dtb_node_find_prop(&node, "bootargs");
 			if (DTB_IS_SENTINEL(prop))
 				panic("No bootargs for bootstrap module %d %s\n", i, node.name);
@@ -360,12 +361,11 @@ void machine_exec_boot_script(void)
 				size_cells = 2;
 
 			off = 0;
-			bmod.mod_start = dtb_prop_read_cells(&prop, address_cells, &off);
-			bmod.mod_end = bmod.mod_start + dtb_prop_read_cells(&prop, size_cells, &off);
+			bmods[i].mod_start = dtb_prop_read_cells(&prop, address_cells, &off);
+			bmods[i].mod_end = bmods[i].mod_start + dtb_prop_read_cells(&prop, size_cells, &off);
 
 			/* FIXME: we probably should make a copy of this string */
-			/* FIXME cannot pass on-stack bmod, it keeps the pointer */
-			err = boot_script_parse_line(&bmod, args);
+			err = boot_script_parse_line(&bmods[i], args);
 			if (err) {
 				printf("Error: %s\n", boot_script_error_string(err));
 				losers++;

@@ -1,5 +1,6 @@
 #include "aarch64/pmap.h"
 #include "aarch64/vm_param.h"
+#include "aarch64/hwcaps.h"
 #include <vm/pmap.h>
 #include <vm/vm_page.h>
 #include <vm/vm_kern.h>
@@ -7,6 +8,76 @@
 #include <kern/printf.h>
 #include <device/dtb.h>
 #include <string.h>
+
+/* PTE bits */
+#define AARCH64_PTE_ADDR_MASK	0x000ffffffffff000UL
+#define AARCH64_PTE_PROT_MASK	0x00600000000000c0UL
+
+/* Block or table */
+#define AARCH64_PTE_BLOCK	0x0000000000000000UL	/* points to a block of phys memory */
+#define AARCH64_PTE_TABLE	0x0000000000000002UL	/* points to a next level table */
+#define AARCH64_PTE_LEVEL3	0x0000000000000002UL	/* this is a level 3 PTE (same value as table) */
+
+#define AARCH64_PTE_VALID	0x0000000000000001UL	/* this entry is valid */
+#define AARCH64_PTE_NS		0x0000000000000020UL	/* security bit (only EL3 & secure EL1) */
+#define AARCH64_PTE_ACCESS	0x0000000000000400UL	/* if unset, trap on access */
+#define AARCH64_PTE_NG		0x0000000000000800UL	/* tag TLB entries with ASID */
+#define AARCH64_PTE_BTI		0x0004000000000000UL	/* enable branch target identification */
+#define AARCH64_PTE_PXN		0x0020000000000000UL	/* privileged execute never */
+#define AARCH64_PTE_UXN		0x0040000000000000UL	/* unprivileged execute never */
+
+#define AARCH64_PTE_MAIR_INDEX(i) ((i) << 2)		/* cache policies, as an index into MAIR table */
+
+/* Access permissions */
+#define AARCH64_PTE_EL0_ACCESS	0x0000000000000040UL	/* EL0 can access (read or write, subject to READ_ONLY) */
+#define AARCH64_PTE_READ_ONLY	0x0000000000000080UL	/* can not be written */
+
+/* Shareability */
+#define AARCH64_PTE_NON_SH	0x0000000000000000UL	/* non-shareable */
+#define AARCH64_PTE_OUTER_SH	0x0000000000000200UL	/* outer shareable */
+#define AARCH64_PTE_INNER_SH	0x0000000000000300UL	/* inner shareable */
+
+#define MAIR_NORMAL_INDEX	0
+#define MAIR_NORMAL_FLAGS	0xff
+#define MAIR_DEVICE_INDEX	1
+#define MAIR_DEVICE_FLAGS	0x00
+
+#define MAIR_VALUE_ENTRY(index, flags)		((flags) << ((index) * 8))
+#define MAIR_VALUE		(MAIR_VALUE_ENTRY(MAIR_NORMAL_INDEX, MAIR_NORMAL_FLAGS) | MAIR_VALUE_ENTRY(MAIR_DEVICE_INDEX, MAIR_DEVICE_FLAGS))
+
+#define TCR_A1			0x0000000000400000UL	/* if set, TTBR1 defines ASID, otherwise TTBR0 */
+
+#define TCR_T0SZ(size)		(64 - size)
+#define TCR_TG0_4K		0x0000000000000000UL
+#define TCR_TG0_64K		0x0000000000004000UL
+#define TCR_TG0_16K		0x0000000000008000UL
+
+#define TCR_T1SZ(size)		((64 - size) << 16)
+#define TCR_TG1_16K		0x0000000040000000UL
+#define TCR_TG1_4K		0x0000000080000000UL
+#define TCR_TG1_64K		0x00000000c0000000UL
+
+#define TCR_VALUE		(TCR_T0SZ(VM_AARCH64_T0SZ) | TCR_TG0_4K | TCR_T1SZ(VM_AARCH64_T1SZ) | TCR_TG1_4K)
+
+#define SCTLR_M			0x0000000000000001UL	/* enable MMU */
+#define SCTLR_A			0x0000000000000002UL	/* enable alignment checking */
+#define SCTLR_SA		0x0000000000000008UL	/* enable SP alignment checking in EL1 */
+#define SCTLR_SA0		0x0000000000000010UL	/* enable SP alignment checking in EL0 */
+#define SCTLR_ENDB		0x0000000000002000UL	/* PAC */
+#define SCTLR_UCT		0x0000000000008000UL	/* allow EL0 to access CTR_EL0 */
+#define SCTLR_SPAN		0x0000000000800000UL	/* don't set psate.PAN upon an exception to EL1 */
+#define SCTLR_UCI		0x0000000004000000UL	/* allow EL0 to issue cache maintenance instructions */
+#define SCTLR_ENDA		0x0000000008000000UL	/* PAC */
+#define SCTLR_ENIB		0x0000000040000000UL	/* PAC */
+#define SCTLR_ENIA		0x0000000080000000UL	/* PAC */
+#define SCTLR_BT0		0x0000000800000000UL	/* enable BTI-on-PACI?SP traps in EL0 */
+#define SCTLR_BT1		0x0000001000000000UL	/* enable BTI-on-PACI?SP traps in EL1 */
+#define SCTLR_EPAN		0x0200000000000000UL	/* enable EPAN */
+
+#define TTBR_ASID(x)		(((x) >> 48) & 0xff)
+#define TTBR_MAKE_ASID(asid)	(((vm_offset_t) asid) << 48)
+#define TTBR_ASID_MASK		0xffff000000000000UL
+#define TTBR_BADDR_MASK		0x0000fffffffffffeUL	/* translation table base address */
 
 static boolean_t	pmap_initialized = FALSE;
 
@@ -17,7 +88,6 @@ static pt_entry_t	*ttbr1_l0_base;
 static struct kmem_cache pmap_cache;
 static struct kmem_cache table_cache;
 
-
 typedef struct pv_entry {
 	struct pv_entry	*next;
 	pmap_t		pmap;
@@ -121,8 +191,8 @@ extern const void	_image_end;
  * Two slots for temporary physical page mapping, to allow for
  * physical-to-physical transfers.
  */
-// static pmap_mapwindow_t mapwindows[PMAP_NMAPWINDOWS * NCPUS];
 #define MAPWINDOW_SIZE (PMAP_NMAPWINDOWS * NCPUS * PAGE_SIZE)
+static void pmap_init_mapwindows(void);
 
 static boolean_t valid_page(phys_addr_t addr)
 {
@@ -157,8 +227,18 @@ static void __attribute__((noinline)) pmap_ungrab_page(vm_offset_t page)
 
 static inline void cache_flush(void)
 {
-	asm volatile("dsb st\n\tisb sy" ::: "memory");
+	asm volatile(
+		"dsb st\n\t"
+		"isb sy"
+		::: "memory");
 }
+
+/* TODO: callers of this should pass VAE1IS, once we mark memory as shareable */
+#define TLB_FLUSH(kind, arg)						\
+MACRO_BEGIN								\
+	asm volatile("dsb ishst");					\
+	asm volatile("tlbi " kind ", %0" :: "r"(arg));			\
+MACRO_END
 
 void pmap_discover_physical_memory(dtb_node_t node)
 {
@@ -221,7 +301,7 @@ _Static_assert((1UL << VM_AARCH64_T1SZ) + VM_MIN_KERNEL_ADDRESS == 0UL);
 
 #define BITS_PER_LEVEL		9	/* 4K granularity */
 #define NEXT_SB(sb)		(((sb) - PAGE_SHIFT - 1) / BITS_PER_LEVEL * BITS_PER_LEVEL + PAGE_SHIFT)
-#define TT_INDEX(v, sb, nsb)	(((v) >> (nsb)) & ((1 << ((sb) - (nsb))) - 1))
+#define TT_INDEX(v, sb, nsb)	(((v) >> (nsb)) & ((1UL << ((sb) - (nsb))) - 1))
 
 /*
  *	Bootstrap the system enough to run with virtual memory.
@@ -236,6 +316,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	phys_addr_t	kernel_block_1;
 	unsigned long	kernel_block_1_index;
 
+	uint64_t	sctlr;
 	uintptr_t	scratch1, scratch2;
 	pt_entry_t	*phys_ttbr1_l0_base;
 	pt_entry_t	*phys_ttbr0_l0_base;
@@ -304,19 +385,18 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	kernel_virtual_start = phystokv(kernel_block_1 + (1UL << NEXT_SB(VM_AARCH64_T1SZ)));
 	kernel_virtual_end = kernel_virtual_start + VM_KERNEL_MAP_SIZE;
 
+	sctlr = SCTLR_M | SCTLR_SA | SCTLR_SA0 | SCTLR_UCT | SCTLR_UCI | SCTLR_BT1;
+	if (hwcap_internal & HWCAP_INT_EPAN)
+		sctlr |= SCTLR_EPAN;
 
-	/* Attempt to enable the MMU.  */
+	/* Enable the MMU.  */
+	asm volatile("msr MAIR_EL1, %0" :: "r"(MAIR_VALUE));
+	asm volatile("msr TCR_EL1, %0" :: "r"(TCR_VALUE));
+	asm volatile("msr TTBR0_EL1, %0" :: "r"(phys_ttbr0_l0_base));
+	asm volatile("msr TTBR1_EL1, %0" :: "r"(phys_ttbr1_l0_base));
 	asm volatile(
-		/* Load special register values.  */
-		"msr mair_el1, %[mair]\n\t"
-		"msr ttbr0_el1, %[ttbr0]\n\t"
-		"msr ttbr1_el1, %[ttbr1]\n\t"
-		"msr tcr_el1, %[tcr]\n\t"
 		"isb sy\n\t"
-		/* Enable the bits in sctlr_el1.  */
-		"mrs %[scratch1], sctlr_el1\n\t"
-		"orr %[scratch1], %[scratch1], %[sctlr]\n\t"
-		"msr sctlr_el1, %[scratch1]\n\t"
+		"msr SCTLR_EL1, %[sctlr]\n\t"
 		"dsb st\n\t"
 		"isb sy\n\t"
 		/* Adjust sp, x29 to high memory.  */
@@ -340,11 +420,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		[scratch1] "=&r"(scratch1),
 		[scratch2] "=&r"(scratch2)
 		:
-		[sctlr] "r"(SCTLR_VALUE),
-		[mair]	"r"(MAIR_VALUE),
-		[ttbr0]	"r"(phys_ttbr0_l0_base),
-		[ttbr1]	"r"(phys_ttbr1_l0_base),
-		[tcr]	"r"(TCR_VALUE),
+		[sctlr] "r"(sctlr),
 		[min_addr] "i"(VM_MIN_KERNEL_ADDRESS)
 		: "memory"
 	);
@@ -367,8 +443,10 @@ void pmap_bootstrap_misc(void)
 	simple_lock_init(&kernel_pmap->lock);
 	kernel_pmap->ref_count = 1;
 	kernel_pmap->l0_base = PT_ENTRY_NULL;
+	kernel_pmap->asid = 0;
 
 	vm_page_load_heap(VM_PAGE_SEG_DMA, heap_start, phys_mem_start + phys_mem_size);
+	pmap_init_mapwindows();
 
 	vm_fault_dirty_handling = TRUE;
 }
@@ -381,9 +459,14 @@ void pmap_virtual_space(
 	*endp = kernel_virtual_end - MAPWINDOW_SIZE;
 }
 
-void load_ttbr0(pmap_t p)
+void pmap_activate_user(pmap_t p)
 {
-	asm volatile("msr ttbr0_el1, %0" :: "r"(kvtophys(p->l0_base)));
+	vm_offset_t	ttbr0, asid_hi;
+
+	asid_hi = TTBR_MAKE_ASID(1);
+	ttbr0 = kvtophys(p->l0_base) | asid_hi;
+	asm volatile("msr TTBR0_EL1, %0" :: "r"(ttbr0));
+	TLB_FLUSH("aside1", asid_hi);
 	cache_flush();
 }
 
@@ -406,6 +489,10 @@ void pmap_init(void)
 	pmap_initialized = TRUE;
 }
 
+#ifdef notyet
+static unsigned short next_asid;
+#endif
+
 pmap_t pmap_create(vm_size_t size)
 {
 	pmap_t	p;
@@ -423,6 +510,19 @@ pmap_t pmap_create(vm_size_t size)
 		return PMAP_NULL;
 	}
 	memset(p->l0_base, 0, PAGE_SIZE);
+
+#ifdef notyet
+#if NCPUS > 1
+#error "Need some synch here"
+#endif
+	p->asid = ++next_asid;
+	if (likely(hwcap_internal & HWCAP_INT_ASID16))
+		p->asid &= 0xffff;
+	else
+		p->asid &= 0xff;
+#else
+	p->asid = 1;
+#endif
 
 	p->ref_count = 1;
 	simple_lock_init(&p->lock);
@@ -442,10 +542,10 @@ void pmap_reference(pmap_t pmap)
 
 static void pmap_destroy_table(
 	pt_entry_t	*table,
-	int		significant_bits)
+	unsigned char	significant_bits)
 {
-	int		index, table_size;
-	int		next_sb;
+	unsigned	index, table_size;
+	unsigned char	next_sb;
 	boolean_t	last_level;
 	pt_entry_t	entry;
 	pt_entry_t	*next_table;
@@ -453,7 +553,7 @@ static void pmap_destroy_table(
 	assert(significant_bits > PAGE_SHIFT);
 	next_sb = NEXT_SB(significant_bits);
 	last_level = (next_sb == PAGE_SHIFT);
-	table_size = 1 << (significant_bits - next_sb);
+	table_size = 1U << (significant_bits - next_sb);
 
 	if (!last_level) {
 		for (index = 0; index < table_size; index++) {
@@ -487,12 +587,6 @@ void pmap_destroy(pmap_t pmap)
 
 	assert(pmap != kernel_pmap);
 	assert(pmap->stats.wired_count == 0);
-	assert({
-		pt_entry_t	*ttbr0;
-
-		asm("mrs %0, ttbr0_el1" : "=r"(ttbr0));
-		ttbr0 != kernel_pmap->l0_base;
-	});
 
 	pmap_destroy_table(pmap->l0_base, VM_AARCH64_T0SZ);
 	kmem_cache_free(&pmap_cache, (vm_offset_t) pmap);
@@ -515,6 +609,13 @@ static pt_entry_t pmap_prot(vm_offset_t v, vm_prot_t prot)
 		entry |= AARCH64_PTE_PXN;
 		if (!(prot & VM_PROT_EXECUTE))
 			entry |= AARCH64_PTE_UXN;
+		/*
+		 *	With EPAN, we can have truly execute-only
+		 *	mappings in EL0.  But if EPAN is not available,
+		 *	forcefully enable EL0 read access.
+		 */
+		else if (!(hwcap_internal & HWCAP_INT_EPAN))
+			entry |= AARCH64_PTE_EL0_ACCESS;
 	}
 
 	return entry;
@@ -524,15 +625,15 @@ static kern_return_t pmap_walk(
 	pmap_t		pmap,
 	pt_entry_t	*table,
 	vm_offset_t	v,
-	int		significant_bits,
+	unsigned char	significant_bits,
 	int		*spl,
 	boolean_t	create,
 	vm_prot_t	prot,
 	pt_entry_t	**out_entry)
 {
-	unsigned long	index;
+	unsigned	index;
 	pt_entry_t	entry;
-	int		next_sb;
+	unsigned char	next_sb;
 	boolean_t	last_level;
 	pt_entry_t	*next_table;
 
@@ -594,6 +695,8 @@ Retry:
 			| AARCH64_PTE_ACCESS
 			| AARCH64_PTE_VALID
 			| AARCH64_PTE_NON_SH /* ?? */;
+		if (v < VM_MAX_USER_ADDRESS)
+			entry |= AARCH64_PTE_NG;
 
 		entry |= pmap_prot(v, prot);
 		table[index] = entry;
@@ -614,14 +717,14 @@ static void pmap_walk_range(
 	pt_entry_t	*table,
 	vm_offset_t	sva,
 	vm_offset_t	eva,
-	int		significant_bits,
+	unsigned char	significant_bits,
 	void		(*callback)(vm_offset_t, pt_entry_t*, void*),
 	void		*data)
 {
 	pt_entry_t	entry, *next_table;
-	int		next_sb;
-	int		index;
-	int		table_size;
+	unsigned char	next_sb;
+	unsigned	index;
+	unsigned	table_size;
 	boolean_t	last_level;
 	vm_offset_t	v;
 
@@ -629,10 +732,10 @@ static void pmap_walk_range(
 	next_sb = NEXT_SB(significant_bits);
 	last_level = (next_sb == PAGE_SHIFT);
 	index = TT_INDEX(sva, significant_bits, next_sb);
-	table_size = 1 << (significant_bits - next_sb);
+	table_size = 1U << (significant_bits - next_sb);
 	v = sva;
 
-	for (v = sva; v < eva && index < table_size; v += (1 << next_sb), index++) {
+	for (v = sva; v < eva && index < table_size; v += (1UL << next_sb), index++) {
 		entry = table[index];
 		if (!(entry & AARCH64_PTE_VALID)) {
 			assert(entry == 0);
@@ -656,7 +759,7 @@ static pt_entry_t *pmap_table(pmap_t pmap, vm_offset_t v)
 	return pmap->l0_base;
 }
 
-static int pmap_root_sb(vm_offset_t v)
+static unsigned char pmap_root_sb(vm_offset_t v)
 {
 	if (v >= VM_MIN_KERNEL_ADDRESS)
 		return VM_AARCH64_T1SZ;
@@ -745,7 +848,6 @@ static void pv_unlink(
 	// UNLOCK_PVH(pai);
 }
 
-
 /*
  *	Insert the given physical page (p) at
  *	the specified virtual address (v) in the
@@ -768,7 +870,7 @@ void pmap_enter(
 	kern_return_t	kr;
 	pt_entry_t	*entry;
 	int		spl;
-	boolean_t	was_present;
+	phys_addr_t	prev_pa;
 
 	assert(pmap != NULL);
 	assert(pa != vm_page_fictitious_addr);
@@ -783,17 +885,20 @@ void pmap_enter(
 
 	kr = pmap_walk(pmap, pmap_table(pmap, v), v, pmap_root_sb(v), &spl, TRUE, prot, &entry);
 	assert(kr == KERN_SUCCESS);
-	was_present = ((*entry) & AARCH64_PTE_ADDR_MASK) != 0;
+	prev_pa = (*entry) & AARCH64_PTE_ADDR_MASK;
 	*entry = ((*entry) & ~AARCH64_PTE_ADDR_MASK & ~AARCH64_PTE_PROT_MASK) | (pt_entry_t)pa | pmap_prot(v, prot);
 
-	if (!was_present) {
+	if (!prev_pa) {		/* FIXME what if it was pa 0x0 */
 		pmap->stats.resident_count++;
 		pv_link(pmap, pa, v, &spl);
+	} else {
+		assert(prev_pa == pa);
 	}
 
 	PMAP_READ_UNLOCK(pmap, spl);
 
-	cache_flush();
+	// TLB_FLUSH("vae1", (v >> PAGE_SHIFT) | TTBR_MAKE_ASID(pmap->asid));
+	// cache_flush();
 }
 
 
@@ -840,6 +945,7 @@ void pmap_protect(
 	vm_prot_t	prot)
 {
 	pt_entry_t	*table;
+	vm_offset_t	v;
 	int		spl;
 
 	assert(sva < eva);
@@ -855,6 +961,8 @@ void pmap_protect(
 	simple_unlock(&pmap->lock);
 	SPLX(spl);
 
+	for (v = sva; v < eva; v += PAGE_SIZE)
+		TLB_FLUSH("vae1", (v >> PAGE_SHIFT) | TTBR_MAKE_ASID(pmap->asid));
 	cache_flush();
 }
 
@@ -886,6 +994,7 @@ void pmap_remove(
 {
 	int		spl;
 	pt_entry_t	*table;
+	vm_offset_t	v;
 
 	PMAP_READ_LOCK(pmap, spl);
 
@@ -895,6 +1004,10 @@ void pmap_remove(
 	pmap_walk_range(table, sva, eva, pmap_root_sb(sva), pmap_remove_callback, pmap);
 
 	PMAP_READ_UNLOCK(pmap, spl);
+
+	for (v = sva; v < eva; v += PAGE_SIZE)
+		TLB_FLUSH("vae1", (v >> PAGE_SHIFT) | TTBR_MAKE_ASID(pmap->asid));
+	cache_flush();
 }
 
 void pmap_page_protect(
@@ -955,10 +1068,116 @@ void pmap_page_protect(
 			entry_prot = (*entry) & AARCH64_PTE_PROT_MASK & pmap_prot(v, prot);
 			*entry = ((*entry) & ~AARCH64_PTE_PROT_MASK) | entry_prot;
 		}
+
+		TLB_FLUSH("vae1", (v >> PAGE_SHIFT) | TTBR_MAKE_ASID(pmap->asid));
+
 		pv_e = pv_next;
 	} while (pv_e != PV_ENTRY_NULL);
 
 Out:
 	// UNLOCK_PVH(pai);
 	PMAP_WRITE_UNLOCK(spl);
+
+	cache_flush();
+}
+
+static void pmap_init_mapwindows(void)
+{
+	kern_return_t		kr;
+	pmap_mapwindow_t	*mw;
+	vm_offset_t		v;
+	int			i, cpu, spl = SPL7;
+
+	v = kernel_virtual_end - MAPWINDOW_SIZE;
+	for (cpu = 0; cpu < NCPUS; cpu++) {
+		for (i = 0; i < PMAP_NMAPWINDOWS; i++) {
+			mw = &percpu_array[cpu].mapwindows[i];
+			mw->vaddr = v;
+			kr = pmap_walk(kernel_pmap, ttbr1_l0_base, v, VM_AARCH64_T1SZ, &spl, TRUE, VM_PROT_NONE, &mw->entry);
+			assert(kr == KERN_SUCCESS);
+			*mw->entry &= ~AARCH64_PTE_VALID;
+			v += PAGE_SIZE;
+		}
+	}
+}
+
+pmap_mapwindow_t *pmap_get_mapwindow(pt_entry_t entry)
+{
+	int			i;
+	boolean_t		found = FALSE;
+	pmap_mapwindow_t	*mw;
+
+	assert(!(entry & ~(AARCH64_PTE_ADDR_MASK | AARCH64_PTE_PROT_MASK)));
+
+	/* Find an empty one.  */
+	for (i = 0; i < PMAP_NMAPWINDOWS; i++) {
+		mw = &percpu_get(pmap_mapwindow_t, mapwindows[i]);
+		if (!(*mw->entry)) {
+			found = TRUE;
+			break;
+		}
+	}
+	assert(found);
+	*mw->entry |= entry | AARCH64_PTE_VALID | AARCH64_PTE_PXN | AARCH64_PTE_UXN;
+	cache_flush();
+	return mw;
+}
+
+void pmap_put_mapwindow(pmap_mapwindow_t *mw)
+{
+	*mw->entry &= ~AARCH64_PTE_ADDR_MASK & ~AARCH64_PTE_PROT_MASK & ~AARCH64_PTE_VALID;
+	// cache_flush();
+}
+
+void pmap_zero_page(phys_addr_t p)
+{
+	vm_offset_t		v;
+	pmap_mapwindow_t	*mw;
+	boolean_t		direct;
+
+	assert(p != vm_page_fictitious_addr);
+	direct = p < VM_PAGE_DIRECTMAP_LIMIT;
+
+	if (direct) {
+		v = phystokv(p);
+	} else {
+		mw = pmap_get_mapwindow((pt_entry_t) p);
+		v = mw->vaddr;
+	}
+
+	memset((void *) v, 0, PAGE_SIZE);
+
+	if (!direct)
+		pmap_put_mapwindow(mw);
+}
+
+void pmap_copy_page(phys_addr_t src, phys_addr_t dst)
+{
+	vm_offset_t		src_v, dst_v;
+	pmap_mapwindow_t	*src_mw = NULL, *dst_mw = NULL;
+	boolean_t		src_direct, dst_direct;
+
+	assert(src != vm_page_fictitious_addr);
+	src_direct = src < VM_PAGE_DIRECTMAP_LIMIT;
+	dst_direct = dst < VM_PAGE_DIRECTMAP_LIMIT;
+
+	if (src_direct) {
+		src_v = phystokv(src);
+	} else {
+		src_mw = pmap_get_mapwindow((pt_entry_t) src | AARCH64_PTE_READ_ONLY);
+		src_v = src_mw->vaddr;
+	}
+	if (dst_direct) {
+		dst_v = phystokv(dst);
+	} else {
+		dst_mw = pmap_get_mapwindow((pt_entry_t) dst);
+		dst_v = dst_mw->vaddr;
+	}
+
+	memcpy((void *) dst_v, (const void *) src_v, PAGE_SIZE);
+
+	if (!src_direct)
+		pmap_put_mapwindow(src_mw);
+	if (!dst_direct)
+		pmap_put_mapwindow(dst_mw);
 }

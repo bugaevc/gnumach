@@ -7,9 +7,7 @@ void intnull() {}
 void pmap_change_wiring() {}
 void pmap_collect() {}
 void pmap_copy() {}
-void pmap_copy_page() {}
 void pmap_map_bd() {}
 void pmap_pageable() {}
-void pmap_zero_page() {}
 void resettodr() {}
 void unmask_irq() {}

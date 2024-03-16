@@ -41,16 +41,18 @@ MACRO_END
 
 #include <kern/processor.h>
 #include <kern/thread.h>
+#include "aarch64/pmap.h"	/* PMAP_NMAPWINDOWS */
 
 struct percpu {
-    struct percpu	*self;
-    int			apic_id;
-    int			cpu_id;
-    struct processor	processor;
-    thread_t		active_thread;
-    vm_offset_t		active_stack;
-    spl_t		curr_ipl;
-    thread_t		fpu_thread;
+	struct percpu		*self;
+	struct processor	processor;
+	thread_t		active_thread;
+	vm_offset_t		active_stack;
+	int			cpu_id;
+	spl_t			curr_ipl;
+	boolean_t		in_irq_from_el0 : 1;
+	thread_t		fpu_thread;
+	pmap_mapwindow_t	mapwindows[PMAP_NMAPWINDOWS];
 /*
     struct machine_slot	machine_slot;
     struct mp_desc_table mp_desc_table;

@@ -15,11 +15,8 @@ kern_return_t aarch64_get_hwcaps(
 	if (host != &realhost)
 		return KERN_INVALID_HOST;
 
-	/* MIG should provide enough space in the reply message.  */
-	assert(*hwcapsCnt >= HWCAPS_COUNT);
-
-	memcpy(out_hwcaps, hwcaps, sizeof(hwcaps));
-	*hwcapsCnt = HWCAPS_COUNT;
+	*hwcapsCnt = MIN(*hwcapsCnt, HWCAPS_COUNT);
+	memcpy(out_hwcaps, hwcaps, sizeof(uint32_t) * (*hwcapsCnt));
 
 	asm("mrs %0, midr_el1" : "=r"(v));
 	*midr_el1 = v;

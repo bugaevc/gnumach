@@ -1,20 +1,23 @@
 #include "aarch64/thread.h"
 #include <kern/thread.h>
 
-offset	thread			th	kernel_stack
-offset	thread			th	swap_func
-expr	&STACK_AKS(0)->k_regs				KSS_REGS
-size	aarch64_kernel_state	aks
-size	aarch64_exception_link	ael
-size	aarch64_thread_state	ats
-expr	KERNEL_STACK_SIZE
+offset	thread				th	kernel_stack
+offset	thread				th	swap_func
+expr	&STACK_AKS(0)->k_regs					KSS_REGS
+size	aarch64_kernel_state		aks
+size	aarch64_exception_link		ael
+size	aarch64_thread_state		ats
+size	aarch64_kernel_exception_state	akes
 
-offset	aarch64_thread_state	ATS	x[0]		ATS_X
-offset	aarch64_thread_state	ATS	sp
-offset	aarch64_thread_state	ATS	pc
-offset	aarch64_thread_state	ATS	tpidr_el0
-offset	aarch64_thread_state	ATS	cpsr
+offset	aarch64_thread_state		ats	x[0]		ATS_X
+offset	aarch64_thread_state		ats	sp
+offset	aarch64_thread_state		ats	pc
+offset	aarch64_thread_state		ats	tpidr_el0
+offset	aarch64_thread_state		ats	cpsr
 
-offset	percpu			pc	active_thread	PERCPU_ACTIVE_THREAD
-offset	percpu			pc	active_stack	PERCPU_ACTIVE_STACK
-offset	percpu			pc	curr_ipl	PERCPU_CURR_IPL
+offset	aarch64_kernel_exception_state	akes	x[0]		AKES_X
+offset	aarch64_kernel_exception_state	akes	cpsr
+
+offset	percpu				pc	active_thread	PERCPU_ACTIVE_THREAD
+offset	percpu				pc	active_stack	PERCPU_ACTIVE_STACK
+offset	percpu				pc	curr_ipl	PERCPU_CURR_IPL

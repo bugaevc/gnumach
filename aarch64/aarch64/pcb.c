@@ -16,6 +16,14 @@
 #define SPSR_M_AARCH_AARCH64	0x00		/* AArch64 */
 #define SPSR_M_AARCH_AARCH32	0x10		/* AArch32 */
 
+#define SPSR_F			0x040		/* FIQ masked */
+#define SPSR_I			0x080		/* IRQ masked */
+#define SPSR_A			0x100		/* SError masked */
+#define SPSR_D			0x200		/* debug exceptions masked */
+#define SPSR_DAIF		(SPSR_D | SPSR_A | SPSR_I | SPSR_F)
+
+#define SPSR_ALLINT		0x2000
+
 #define SPSR_PAN		0x400000	/* privileged access never */
 #define SPSR_UAO		0x800000	/* user access override */
 
@@ -220,12 +228,19 @@ kern_return_t thread_setstatus(
 				return KERN_INVALID_ARGUMENT;
 			if (SPSR_M_AARCH(ats->cpsr) != SPSR_M_AARCH_AARCH64)
 				return KERN_INVALID_ARGUMENT;
-			if (ats->cpsr & SPSR_UAO)
+
+			if (ats->cpsr & SPSR_DAIF)
 				return KERN_INVALID_ARGUMENT;
 
-			/* TODO: DAIF; should probably mask in the right value
-			   instead of requiring the caller to supply it */
-			ats->cpsr |= SPSR_PAN;
+			if (ats->cpsr >> 32)
+				return KERN_INVALID_ARGUMENT;
+
+			/*
+			 *	Note that PAN and UAO don't have any effect
+			 *	on code running in EL0, and will be reset
+			 *	to 1 / 0 upon exception entry.
+			 */
+
 			/* TODO: audit all the other bits */
 
 			memcpy(USER_REGS(thread), ats, sizeof(struct aarch64_thread_state));

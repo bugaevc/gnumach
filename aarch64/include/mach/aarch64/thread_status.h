@@ -27,7 +27,7 @@ struct aarch64_thread_state {
 	uint64_t sp;
 	uint64_t pc;
 	uint64_t tpidr_el0;
-	uint32_t cpsr;
+	uint64_t cpsr;
 };
 #define AARCH64_THREAD_STATE_COUNT	(sizeof(struct aarch64_thread_state) / sizeof(unsigned int))
 

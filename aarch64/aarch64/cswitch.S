@@ -1,5 +1,6 @@
 #include <mach/machine/asm.h>
 #include "aarch64/aarch64asm.h"
+#include "aarch64/vm_param.h"
 
 ENTRY(load_context)
 	ldr	x1, [x0, #TH_KERNEL_STACK]	/* load kernel stack bottom */
