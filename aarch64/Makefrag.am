@@ -48,7 +48,6 @@ libkernel_a_SOURCES += \
 	aarch64/aarch64/pmap.c \
 	aarch64/aarch64/setjmp.h \
 	aarch64/aarch64/spl.h \
-	aarch64/aarch64/spl.S \
 	aarch64/aarch64/strings.c \
 	aarch64/aarch64/task.c \
 	aarch64/aarch64/task.h \

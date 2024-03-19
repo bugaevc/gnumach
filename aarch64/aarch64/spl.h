@@ -1,27 +1,3 @@
-/*
- * Copyright (c) 1995, 1994, 1993, 1992, 1991, 1990  
- * Open Software Foundation, Inc. 
- *  
- * Permission to use, copy, modify, and distribute this software and 
- * its documentation for any purpose and without fee is hereby granted, 
- * provided that the above copyright notice appears in all copies and 
- * that both the copyright notice and this permission notice appear in 
- * supporting documentation, and that the name of ("OSF") or Open Software 
- * Foundation not be used in advertising or publicity pertaining to 
- * distribution of the software without specific, written prior permission. 
- *  
- * OSF DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE 
- * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS 
- * FOR A PARTICULAR PURPOSE. IN NO EVENT SHALL OSF BE LIABLE FOR ANY 
- * SPECIAL, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES 
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN 
- * ACTION OF CONTRACT, NEGLIGENCE, OR OTHER TORTIOUS ACTION, ARISING 
- * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE 
- */
-/*
- * OSF Research Institute MK6.1 (unencumbered) 1/31/1995
- */
-
 #ifndef	_MACHINE_SPL_H_
 #define	_MACHINE_SPL_H_
 
@@ -32,43 +8,70 @@
 
 typedef int		spl_t;
 
-extern spl_t	(splhi)(void);
+#define SPL0		0
+#define SPL7		7
 
-extern spl_t	(spl0)(void);
+#define DAIF_MASK	0x3c0
 
-extern spl_t	(spl1)(void);
-extern spl_t	(splsoftclock)(void);
+/* Enable interrupts.  */
+static inline void spl0(void)
+{
+	__atomic_signal_fence(__ATOMIC_RELEASE);
+	asm volatile("msr DAIFClr, #15");
+}
 
-extern spl_t	(spl2)(void);
+/* Disable interrupts, returning previous SPL.  */
+static inline spl_t spl7(void)
+{
+	long	daif;
 
-extern spl_t	(spl3)(void);
+	asm volatile("mrs %0, DAIF" : "=r"(daif));
+	asm volatile("msr DAIFSet, #15");
+	__atomic_signal_fence(__ATOMIC_ACQUIRE);
 
-extern spl_t	(spl4)(void);
-extern spl_t	(splnet)(void);
-extern spl_t	(splhdw)(void);
+	return (daif & DAIF_MASK) ? SPL7 : SPL0;
+}
 
-extern spl_t	(spl5)(void);
-extern spl_t	(splbio)(void);
-extern spl_t	(spldcm)(void);
+static inline void splx(spl_t spl)
+{
+	if (spl == SPL0)
+		spl0();
+}
 
-extern spl_t	(spl6)(void);
-extern spl_t	(spltty)(void);
-extern spl_t	(splimp)(void);
-extern spl_t	(splvm)(void);
+static inline void spl0_irq(void)
+{
+	__atomic_signal_fence(__ATOMIC_RELEASE);
+}
 
-extern spl_t	(spl7)(void);
-extern spl_t	(splclock)(void);
-extern spl_t	(splsched)(void);
-extern spl_t	(splhigh)(void);
+static inline void spl7_irq(void)
+{
+	__atomic_signal_fence(__ATOMIC_ACQUIRE);
+}
 
-extern spl_t	(splx)(spl_t n);
+#define splhigh		spl7
+#define splsoftclock	spl7
+#define splnet		spl7
+#define splhdw		spl7
+#define splbio		spl7
+#define spldcm		spl7
+#define spltty		spl7
+#define splimp		spl7
+#define splvm		spl7
+#define splclock	spl7
+#define splsched	spl7
 
-extern void setsoftclock (void);
+#define spl1		spl7
+#define spl2		spl7
+#define spl3		spl7
+#define spl4		spl7
+#define spl5		spl7
+#define spl6		spl7
+
 extern int spl_init;
 
-extern spl_t	(spl7_irq)(void);
-extern void	(spl0_irq)(void);
-
-#include <aarch64/ipl.h>
+static inline void setsoftclock(void)
+{
+	__builtin_unreachable();
+}
 
 #endif	/* _MACHINE_SPL_H_ */

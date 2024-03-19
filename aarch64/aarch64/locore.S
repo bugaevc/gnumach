@@ -446,10 +446,6 @@ ENTRY(thread_bootstrap_return)
 	bti	c
 #endif
 
-	adr	x0, EXT(need_ast)
-	ldr	w1, [x0]
-	cbnz	w1, .take_ast
-
 	/*
 	 *	We're about to write system registers (ELR_EL1 etc.),
 	 *	and we can't allow an interrupt to clobber their values,
@@ -459,7 +455,12 @@ ENTRY(thread_bootstrap_return)
 	 *	which sets DAIF again from SPSR_EL1.
 	 *
 	 */
-	msr	DAIFSet, #3
+	msr	DAIFSet, #15
+
+	/* take an AST if needed */
+	adr	x0, EXT(need_ast)
+	ldr	w1, [x0]
+	cbnz	w1, .take_ast
 
 	/* switch to PCB stack */
 	GET_PCB_STACK(x1)
@@ -497,7 +498,7 @@ ENTRY(thread_bootstrap_return)
 END(thread_exception_return)
 
 LEXT(return_to_kernel)
-	msr	DAIFSet, #3		/* see above */
+	msr	DAIFSet, #15		/* see above */
 
 	ldp	x29, x1, [sp]
 	msr	ELR_EL1, x1
@@ -591,7 +592,7 @@ ENTRY(exception_vector_table)
 	SAVE_EL0_STATE()
 	SWITCH_TO_KERNEL_STACK(x0)
 	CFI_PCB_EL0_STATE()
-	msr	DAIFClr, #3			/* safe to unmask interrupts now */
+	msr	DAIFClr, #15			/* safe to unmask interrupts now */
 	bl	EXT(trap_sync_exc_el0)
 	nop					/* mysterious nop */
 	.cfi_endproc

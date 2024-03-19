@@ -79,7 +79,7 @@ void halt_cpu(void)
 	psci_cpu_off();
 	/* Disable interrupts and WFE forever.  */
 	asm volatile(
-		"msr	DAIFSet, #3\n"
+		"msr	DAIFSet, #15\n"
 		"0:\n\t"
 		"wfe\n\t"
 		"b	0b"
@@ -215,7 +215,8 @@ void machine_init(void)
 {
 	fpu_init();
 
-	spl7();
+	/* Note that the kernel is entered with IRQ/FIQ masked.  */
+	spl7_irq();
 	spl_init = TRUE;
 
 	walk_dtb();
@@ -316,6 +317,7 @@ void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 
 
 	machine_slot[0].is_cpu = TRUE;
+	machine_slot[0].cpu_type = CPU_TYPE_ARM64;
 	init_percpu(0);
 
 	setup_main();

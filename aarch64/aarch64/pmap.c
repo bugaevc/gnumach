@@ -9,6 +9,14 @@
 #include <device/dtb.h>
 #include <string.h>
 
+struct pmap {
+	pt_entry_t	*l0_base;	/* TTBR0 */
+	unsigned short	asid;
+	int		ref_count;
+	decl_simple_lock_data(,lock)	/* lock on map */
+	struct pmap_statistics stats;	/* map statistics */
+};
+
 /* PTE bits */
 #define AARCH64_PTE_ADDR_MASK	0x000ffffffffff000UL
 #define AARCH64_PTE_PROT_MASK	0x00600000000000c0UL
@@ -367,6 +375,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| AARCH64_PTE_UXN
 		| AARCH64_PTE_PXN
 		| AARCH64_PTE_NON_SH /* ? */;
+	/* FIXME: MAIR device index... */
 	phys_ttbr1_l0_base[kernel_block_1_index] = kernel_block_1
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
@@ -531,6 +540,11 @@ pmap_t pmap_create(vm_size_t size)
 	p->stats.wired_count = 0;
 
 	return p;
+}
+
+integer_t pmap_resident_count(pmap_t pmap)
+{
+	return pmap->stats.resident_count;
 }
 
 void pmap_reference(pmap_t pmap)

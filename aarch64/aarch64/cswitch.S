@@ -8,7 +8,7 @@ ENTRY(load_context)
 	add	x2, x1, x2			/* find kernel stack top */
 	adr	x0, EXT(kernel_stack)
 	str	x2, [x0]			/* store kernel stack top */
-	adr	x2, EXT(percpu_array)
+	mrs	x2, TPIDR_EL1
 	str	x1, [x2, #PERCPU_ACTIVE_STACK]	/* store stack bottom */
 	mov	x2, #KSS_REGS			/* load registers... */
 	add	x1, x1, x2			/* ...relative to stack bottom */
@@ -25,7 +25,7 @@ ENTRY(load_context)
 END(load_context)
 
 ENTRY(Switch_context)
-	adr	x4, EXT(percpu_array)
+	mrs	x4, TPIDR_EL1
 	ldr	x6, [x4, #PERCPU_ACTIVE_STACK]	/* load stack bottom */
 	mov	x5, #KSS_REGS
 	add	x5, x6, x5

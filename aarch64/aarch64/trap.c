@@ -79,8 +79,7 @@ void trap_aarch32(void)
 
 void trap_irq_el0(void)
 {
-	int s = spl7_irq();
-	assert(s == SPL0);
+	spl7_irq();
 	percpu_assign(in_irq_from_el0, TRUE);
 
 	assert(root_irq_src);
@@ -180,8 +179,7 @@ void trap_serror_el0(void)
 
 void trap_irq_el1(void)
 {
-	int s = spl7_irq();
-	assert(s == SPL0);
+	spl7_irq();
 
 	assert(root_irq_src);
 	root_irq_src->handle_irq(root_irq_src);

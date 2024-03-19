@@ -3,12 +3,15 @@
 
 #if NCPUS > 1
 
-#error "TODO"
+#ifndef __ASSEMBLER__
+static inline int cpu_number(void)
+{
+	int		mycpu;
 
-#else
-
-#define CPU_NUMBER(addr)
-#define CX(addr, reg)		addr
+	asm("mrs %0, TPIDRRO_EL0" : "=r"(mycpu));
+	return mycpu;
+}
+#endif
 
 #endif
 

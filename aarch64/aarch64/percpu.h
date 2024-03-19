@@ -23,41 +23,34 @@
 struct percpu;
 
 #if NCPUS > 1
-#define percpu_assign(stm, val)
-#define percpu_get(typ, stm)
-#define percpu_ptr(typ, stm)
+static inline __attribute__((const)) struct percpu *_my_percpu(void)
+{
+	struct percpu	*p;
+
+	asm("mrs %0, TPIDR_EL1" : "=r"(p));
+	return p;
+}
 #else
-
-#define percpu_assign(stm, val)     \
-MACRO_BEGIN                         \
-        percpu_array[0].stm = val;  \
-MACRO_END
-#define percpu_get(typ, stm)        \
-        (percpu_array[0].stm)
-#define percpu_ptr(typ, stm)        \
-        (&percpu_array[0].stm)
-
+#define _my_percpu()			(&percpu_array[0])
 #endif
 
+#define percpu_assign(stm, val)		_my_percpu()->stm = (val)
+#define percpu_get(typ, stm)		(_my_percpu()->stm)
+#define percpu_ptr(type, stm)		(&_my_percpu()->stm)
+
 #include <kern/processor.h>
-#include <kern/thread.h>
-#include "aarch64/pmap.h"	/* PMAP_NMAPWINDOWS */
+#include <kern/kern_types.h>
+#include "aarch64/pmap.h"
 
 struct percpu {
-	struct percpu		*self;
 	struct processor	processor;
 	thread_t		active_thread;
 	vm_offset_t		active_stack;
-	int			cpu_id;
-	spl_t			curr_ipl;
 	boolean_t		in_irq_from_el0 : 1;
 	thread_t		fpu_thread;
 	pmap_mapwindow_t	mapwindows[PMAP_NMAPWINDOWS];
 /*
     struct machine_slot	machine_slot;
-    struct mp_desc_table mp_desc_table;
-    vm_offset_t		int_stack_top;
-    vm_offset_t		int_stack_base;
     ast_t		need_ast;
     ipc_kmsg_t		ipc_kmsg_cache;
     pmap_update_list	cpu_update_list;

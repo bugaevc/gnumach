@@ -27,14 +27,6 @@
 typedef phys_addr_t pt_entry_t;
 #define PT_ENTRY_NULL	((pt_entry_t *) 0)
 
-struct pmap {
-	pt_entry_t	*l0_base;	/* TTBR0 */
-	unsigned short	asid;
-	int		ref_count;
-	decl_simple_lock_data(,lock)	/* lock on map */
-	struct pmap_statistics stats;	/* map statistics */
-};
-
 typedef struct pmap *pmap_t;
 
 #define pmap_attribute(pmap,addr,size,attr,value) (KERN_INVALID_ADDRESS)
@@ -67,12 +59,12 @@ MACRO_BEGIN								\
 		pmap_activate_user(pmap);				\
 MACRO_END
 
-#define pmap_resident_count(pmap)	((pmap)->stats.resident_count)
-
 #define pmap_kernel()                   (kernel_pmap)
 #define pmap_phys_address(frame)	(frame)
 #define pmap_phys_to_frame(phys)        (phys)
 #define pmap_copy(dst_pmap,src_pmap,dst_addr,len,src_addr)
+
+extern integer_t	pmap_resident_count(pmap_t pmap);
 
 static inline boolean_t	pmap_is_modified(phys_addr_t) { return FALSE; }
 static inline boolean_t	pmap_is_referenced(phys_addr_t) { return FALSE; }

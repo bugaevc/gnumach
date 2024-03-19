@@ -45,9 +45,9 @@ static void cnt_handle_irq(struct irq_src *)
 
 	from_el0 = percpu_get(boolean_t, in_irq_from_el0);
 	if (from_el0)
-		clock_interrupt(usec, TRUE, FALSE, current_thread()->pcb->ats.pc);
+		clock_interrupt(usec, TRUE, TRUE, current_thread()->pcb->ats.pc);
 	else
-		clock_interrupt(usec, FALSE, FALSE, 0);
+		clock_interrupt(usec, FALSE, TRUE, 0);
 
 	set_up_next_interrupt();
 }
