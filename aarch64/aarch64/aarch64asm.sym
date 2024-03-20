@@ -20,4 +20,3 @@ offset	aarch64_kernel_exception_state	akes	cpsr
 
 offset	percpu				pc	active_thread	PERCPU_ACTIVE_THREAD
 offset	percpu				pc	active_stack	PERCPU_ACTIVE_STACK
-offset	percpu				pc	curr_ipl	PERCPU_CURR_IPL
