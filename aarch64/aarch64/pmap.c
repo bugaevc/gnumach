@@ -403,6 +403,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	asm volatile("msr TCR_EL1, %0" :: "r"(TCR_VALUE));
 	asm volatile("msr TTBR0_EL1, %0" :: "r"(phys_ttbr0_l0_base));
 	asm volatile("msr TTBR1_EL1, %0" :: "r"(phys_ttbr1_l0_base));
+	asm volatile("" ::: "memory");
 	asm volatile(
 		"isb sy\n\t"
 		"msr SCTLR_EL1, %[sctlr]\n\t"
