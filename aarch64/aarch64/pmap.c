@@ -669,6 +669,26 @@ static pt_entry_t pmap_prot(vm_offset_t v, vm_prot_t prot)
 	return entry;
 }
 
+static void pmap_reduce_prot(
+	pt_entry_t	*entry,
+	pt_entry_t	prot_mask)
+{
+	*entry |= AARCH64_PTE_PXN;
+
+	if (prot_mask & AARCH64_PTE_UXN)
+		*entry |= AARCH64_PTE_UXN;
+	if (prot_mask & AARCH64_PTE_READ_ONLY)
+		*entry |= AARCH64_PTE_READ_ONLY;
+
+	if (!(prot_mask & AARCH64_PTE_EL0_ACCESS))
+		*entry &= ~AARCH64_PTE_EL0_ACCESS;
+
+	/*
+	 *	XXX: Convince myself that this cannot lead to
+	 *	execute-only mappings unless we have EPAN.
+	 */
+}
+
 static kern_return_t pmap_walk(
 	pmap_t		pmap,
 	pt_entry_t	*table,
@@ -980,10 +1000,8 @@ static void pmap_protect_callback(
 
 	if (entry == PT_ENTRY_NULL || !(*entry & AARCH64_PTE_VALID))
 		return;
-	/*
-	 *	Reduce the allowed protection, but never increase it.
-	 */
-	*entry &= (prot | ~AARCH64_PTE_PROT_MASK);
+
+	pmap_reduce_prot(entry, prot);
 }
 
 void pmap_protect(
@@ -1067,7 +1085,7 @@ void pmap_page_protect(
 	unsigned long	pai;
 	pv_entry_t	pv_h, pv_e, pv_next;
 	pmap_t		pmap;
-	pt_entry_t	*entry, entry_prot;
+	pt_entry_t	*entry;
 	vm_offset_t	v;
 
 	assert(phys != vm_page_fictitious_addr);
@@ -1113,8 +1131,7 @@ void pmap_page_protect(
 			/*
 			 *	Just reduce the protection.
 			 */
-			entry_prot = (*entry) & AARCH64_PTE_PROT_MASK & pmap_prot(v, prot);
-			*entry = ((*entry) & ~AARCH64_PTE_PROT_MASK) | entry_prot;
+			pmap_reduce_prot(entry, pmap_prot(v, prot));
 		}
 
 		TLB_FLUSH("vae1", (v >> PAGE_SHIFT) | TTBR_MAKE_ASID(pmap->asid));
