@@ -17,6 +17,7 @@ offset	aarch64_thread_state		ats	cpsr
 
 offset	aarch64_kernel_exception_state	akes	x[0]		AKES_X
 offset	aarch64_kernel_exception_state	akes	cpsr
+offset	aarch64_kernel_exception_state	akes	pc
 
 offset	percpu				pc	active_thread	PERCPU_ACTIVE_THREAD
 offset	percpu				pc	active_stack	PERCPU_ACTIVE_STACK

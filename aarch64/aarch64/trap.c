@@ -226,7 +226,9 @@ void trap_sync_exc_el1(
 				 *	Faulted on a user address.
 				 *	This could be a PAN failure, or the fault
 				 *	may be benign if there's a recovery handler
-				 *	at this address.
+				 *	at this address.  We can detect would-be PAN
+				 *	failures even if hardware PAN is not present
+				 *	(SoftPAN).
 				 */
 				boolean_t	found = FALSE;
 				for (rp = recover_table; rp < recover_table_end; rp++) {
@@ -236,7 +238,7 @@ void trap_sync_exc_el1(
 					}
 				}
 				if (!found)
-					panic("PAN failure at PC %p\n", (const void *) akes->pc);
+					panic("SoftPAN failure at %p\n", (const void *) far);
 				map = current_map();
 			} else {
 				map = kernel_map;
@@ -254,7 +256,7 @@ void trap_sync_exc_el1(
 			 */
 			for (rp = recover_table; rp < recover_table_end; rp++) {
 				if ((vm_offset_t) akes->pc == recover_base + rp->fault_addr_off) {
-					akes->pc = recover_base + rp->recover_addr_off;
+					akes->pc = (void *) (recover_base + rp->recover_addr_off);
 					/*
 					 *	Set things up for an appropriate exception() call,
 					 *	if that's what the handler wants to do.

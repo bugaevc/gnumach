@@ -74,7 +74,6 @@
 	mrs	x3, FAR_EL1					;\
 	stp	x2, x3, [sp, #(ATS_SIZE)]
 
-
 /*
  *	CFI / DWARF magic to let GDB know about aarch64_exception_link
  *	& aarch64_thread_state.  This makes it possible to backtrace
@@ -143,18 +142,23 @@
 	.cfi_offset 29, ATS_X + 232				;\
 	.cfi_offset 30, ATS_X + 240				;\
 	.cfi_offset 31, ATS_SP					;\
-	.cfi_offset 32, ATS_SP + 8
+	.cfi_offset 32, ATS_PC					;\
+	.cfi_offset 36, ATS_TPIDR_EL0
 
 
 /*
- *	Spill caller-saved registers onto the stack.
+ *	Spill caller-saved registers onto the stack, forming an
+ *	struct aarch64_kernel_exception_state (akes).
  */
 
-/* 16 instructions (64 bytes) long */
+#if (AKES_X != 0) || (AKES_CPSR != AKES_PC + 8)
+#error "Update the logic below"
+#endif
+
+/* 13 instructions (52 bytes) long */
 #define SAVE_EL1_STATE()					 \
-	sub	sp, sp, #(AKES_SIZE)				;\
+	stp	x0, x1, [sp, #(-AKES_SIZE)]!			;\
 	.cfi_def_cfa sp, AKES_SIZE				;\
-	stp	x0, x1, [sp, #(AKES_X)]				;\
 	.cfi_offset 0, AKES_X - AKES_SIZE			;\
 	.cfi_offset 1, AKES_X + 8 - AKES_SIZE			;\
 	stp	x2, x3, [sp, #(AKES_X + 16)]			;\
@@ -184,14 +188,10 @@
 	stp	x18, x30, [sp, #(AKES_X + 144)]			;\
 	.cfi_offset 18, AKES_X + 144 - AKES_SIZE		;\
 	.cfi_offset 30, AKES_X + 152 - AKES_SIZE		;\
-	mrs	x30, ELR_EL1					;\
-	stp	x29, x30, [sp]					;\
-	.cfi_offset 29, -AKES_SIZE				;\
-	.cfi_offset 32, 8 - AKES_SIZE				;\
-	mov	x29, sp						;\
-	mrs	x0, SPSR_EL1					;\
-	str	x0, [sp, #(AKES_CPSR)]
-
+	mrs	x0, ELR_EL1					;\
+	mrs	x1, SPSR_EL1					;\
+	stp	x0, x1, [sp, #(AKES_PC)]			;\
+	.cfi_offset 32, AKES_PC - AKES_SIZE			;\
 
 /*
  *	Fault recovery.
@@ -500,9 +500,8 @@ END(thread_exception_return)
 LEXT(return_to_kernel)
 	msr	DAIFSet, #15		/* see above */
 
-	ldp	x29, x1, [sp]
-	msr	ELR_EL1, x1
-	ldr	x1, [sp, #(AKES_CPSR)]
+	ldp	x0, x1, [sp, #(AKES_PC)]
+	msr	ELR_EL1, x0
 	msr	SPSR_EL1, x1
 
 	ldp	x0, x1, [sp, #(AKES_X)]

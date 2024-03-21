@@ -22,6 +22,11 @@
 #include "aarch64/vm_param.h"
 #include "mach/machine/thread_status.h"
 
+/*
+ *	The state of a blocked kernel thread, see Switch_context().
+ *	Since blocking looks like a function call, we only have to
+ *	save callee-saved registers.
+ */
 struct aarch64_kernel_state {
 	long	k_regs[12];	/* x19 to x30 */
 	long	k_sp;
@@ -30,17 +35,13 @@ struct aarch64_kernel_state {
 
 /*
  *	The state saved on the stack when taking an exception from
- *	EL1.  It is laid out like a normal call frame, to enable
- *	backtracing through exceptions taken from EL1.  We only have
- *	to save the caller-saved registers, plus x29 to make it look
- *	like a call frame.
+ *	EL1.  We only have to save the caller-saved registers.
  */
 struct aarch64_kernel_exception_state {
-	long	x29;
-	long	pc;		/* "return address", x30 in regular subroutine calls */
-	long	cpsr;
 	long	x[19];		/* x0 to x18 */
-	long	x30;
+	void	*x30;
+	void	*pc;
+	long	cpsr;
 };
 
 typedef struct pcb {
