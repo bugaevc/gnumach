@@ -18,7 +18,7 @@ struct pmap {
 };
 
 /* PTE bits */
-#define AARCH64_PTE_ADDR_MASK	0x000ffffffffff000UL
+#define AARCH64_PTE_ADDR_MASK	0x0000fffffffff000UL
 #define AARCH64_PTE_PROT_MASK	0x00600000000000c0UL
 
 /* Block or table */
@@ -31,6 +31,7 @@ struct pmap {
 #define AARCH64_PTE_ACCESS	0x0000000000000400UL	/* if unset, trap on access */
 #define AARCH64_PTE_NG		0x0000000000000800UL	/* tag TLB entries with ASID */
 #define AARCH64_PTE_BTI		0x0004000000000000UL	/* enable branch target identification */
+#define AARCH64_PTE_CONTIG	0x0010000000000000UL	/* hint that this is a part of contigous set */
 #define AARCH64_PTE_PXN		0x0020000000000000UL	/* privileged execute never */
 #define AARCH64_PTE_UXN		0x0040000000000000UL	/* unprivileged execute never */
 
@@ -319,16 +320,20 @@ _Static_assert((1UL << VM_AARCH64_T1SZ) + VM_MIN_KERNEL_ADDRESS == 0UL);
  */
 void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 {
-	phys_addr_t	kernel_block_0;
-	unsigned long	kernel_block_0_index;
-	phys_addr_t	kernel_block_1;
-	unsigned long	kernel_block_1_index;
+#if (VM_AARCH64_T0SZ != 48) || (VM_AARCH64_T1SZ != 48)
+#error "Rework the logic below"
+#endif
+	phys_addr_t	kernel_block_t0_l1;
+	unsigned long	kernel_block_t0_l1_index;
+	phys_addr_t	kernel_block_t1_l1;
+	unsigned long	kernel_block_t1_l1_index;
 
 	uint64_t	sctlr;
 	uintptr_t	scratch1, scratch2;
-	pt_entry_t	*phys_ttbr1_l0_base;
 	pt_entry_t	*phys_ttbr0_l0_base;
-	pt_entry_t	*ttbr0_l0_base;
+	pt_entry_t	*phys_ttbr1_l0_base;
+	pt_entry_t	*phys_ttbr0_l1_base;
+	pt_entry_t	*phys_ttbr1_l1_base;
 	pt_entry_t	kernel_mapping_bti;
 
 	/*
@@ -342,21 +347,32 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	kernel_mapping_bti = 0;
 #endif
 
-	kernel_block_0_index = TT_INDEX((phys_addr_t) &__text_start, VM_AARCH64_T0SZ, NEXT_SB(VM_AARCH64_T0SZ));
-	kernel_block_0 = kernel_block_0_index << NEXT_SB(VM_AARCH64_T0SZ);
-	kernel_block_1_index = TT_INDEX((phys_addr_t) &__text_start, VM_AARCH64_T1SZ, NEXT_SB(VM_AARCH64_T1SZ));
-	kernel_block_1 = kernel_block_1_index << NEXT_SB(VM_AARCH64_T1SZ);
+	kernel_block_t0_l1_index = TT_INDEX((phys_addr_t) &__text_start, 36, NEXT_SB(36));
+	kernel_block_t0_l1 = kernel_block_t0_l1_index << NEXT_SB(36);
+	kernel_block_t1_l1_index = TT_INDEX((phys_addr_t) &__text_start, 36, NEXT_SB(36));
+	kernel_block_t1_l1 = kernel_block_t1_l1_index << NEXT_SB(36);
 
 	phys_ttbr1_l0_base = (pt_entry_t*)pmap_grab_page();
+	phys_ttbr1_l1_base = (pt_entry_t*)pmap_grab_page();
+
 	ttbr1_l0_base = (pt_entry_t*)phystokv(phys_ttbr1_l0_base);
 
-	/* Make sure to grab ttbr0_l0_base last, so it can be then freed.  */
+	/* Make sure to grab these ones last, so they can be then released.  */
 	phys_ttbr0_l0_base = (pt_entry_t*)pmap_grab_page();
-	ttbr0_l0_base = (pt_entry_t*)phystokv(phys_ttbr0_l0_base);
+	phys_ttbr0_l1_base = (pt_entry_t*)pmap_grab_page();
 
 	memset(phys_ttbr0_l0_base, 0, PAGE_SIZE);
+	memset(phys_ttbr0_l1_base, 0, PAGE_SIZE);
 	/* Temporary identity map.  */
-	phys_ttbr0_l0_base[kernel_block_0_index] = kernel_block_0
+	phys_ttbr0_l0_base[0] = (phys_addr_t) phys_ttbr0_l1_base
+		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
+		| AARCH64_PTE_ACCESS
+		| AARCH64_PTE_TABLE
+		| AARCH64_PTE_VALID
+		| AARCH64_PTE_UXN
+		| kernel_mapping_bti
+		| AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr0_l1_base[kernel_block_t0_l1_index] = kernel_block_t0_l1
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
 		| AARCH64_PTE_BLOCK
@@ -365,9 +381,18 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| kernel_mapping_bti
 		| AARCH64_PTE_NON_SH /* ? */;
 
+	/* The upper map.  */
 	memset(phys_ttbr1_l0_base, 0, PAGE_SIZE);
+	memset(phys_ttbr1_l1_base, 0, PAGE_SIZE);
 	/* TODO: This assumes that physical memory is in the first block.  */
-	phys_ttbr1_l0_base[0] = 0x0
+	phys_ttbr1_l0_base[0] = (phys_addr_t) phys_ttbr1_l1_base
+		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
+		| AARCH64_PTE_ACCESS
+		| AARCH64_PTE_TABLE
+		| AARCH64_PTE_VALID
+		| AARCH64_PTE_UXN
+		| AARCH64_PTE_NON_SH /* ? */;
+	phys_ttbr1_l1_base[0] = 0x0
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
 		| AARCH64_PTE_BLOCK
@@ -376,7 +401,7 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| AARCH64_PTE_PXN
 		| AARCH64_PTE_NON_SH /* ? */;
 	/* FIXME: MAIR device index... */
-	phys_ttbr1_l0_base[kernel_block_1_index] = kernel_block_1
+	phys_ttbr1_l1_base[kernel_block_t1_l1_index] = kernel_block_t1_l1
 		| AARCH64_PTE_MAIR_INDEX(MAIR_NORMAL_INDEX)
 		| AARCH64_PTE_ACCESS
 		| AARCH64_PTE_BLOCK
@@ -386,12 +411,12 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		| AARCH64_PTE_NON_SH /* ? */;
 
 	/*
-	 * Determine the kernel virtual address range.
-	 * It starts at the end of the physical memory
-	 * mapped into the kernel address space,
-	 * and extends to a stupid arbitrary limit beyond that.
+	 *	Determine the kernel virtual address range.
+	 *	It starts at the end of the physical memory
+	 *	mapped into the kernel address space,
+	 *	and extends to a stupid arbitrary limit beyond that.
 	 */
-	kernel_virtual_start = phystokv(kernel_block_1 + (1UL << NEXT_SB(VM_AARCH64_T1SZ)));
+	kernel_virtual_start = phystokv(kernel_block_t1_l1 + (1UL << NEXT_SB(36)));
 	kernel_virtual_end = kernel_virtual_start + VM_KERNEL_MAP_SIZE;
 
 	sctlr = SCTLR_M | SCTLR_SA | SCTLR_SA0 | SCTLR_UCT | SCTLR_UCI | SCTLR_BT1;
@@ -403,7 +428,6 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	asm volatile("msr TCR_EL1, %0" :: "r"(TCR_VALUE));
 	asm volatile("msr TTBR0_EL1, %0" :: "r"(phys_ttbr0_l0_base));
 	asm volatile("msr TTBR1_EL1, %0" :: "r"(phys_ttbr1_l0_base));
-	asm volatile("" ::: "memory");
 	asm volatile(
 		"isb sy\n\t"
 		"msr SCTLR_EL1, %[sctlr]\n\t"
@@ -425,7 +449,13 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		"ldp %[scratch2], x30, [x29]\n\t"
 		"add %[scratch2], %[scratch2], %[scratch1]\n\t"
 		"add x30, x30, %[scratch1]\n\t"
-		"stp %[scratch2], x30, [x29]"
+		"stp %[scratch2], x30, [x29]\n\t"
+		/*
+		 *	Unload the identity mapping, just to make
+		 *	sure we crash if anything still references it.
+		 */
+		"mov %[scratch2], #-1\n\t"
+		"msr TTBR0_EL1, %[scratch2]"
 		:
 		[scratch1] "=&r"(scratch1),
 		[scratch2] "=&r"(scratch2)
@@ -435,11 +465,14 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 		: "memory"
 	);
 
-	/* Unmap the identity mapping, we no longer need it.  */
-	ttbr0_l0_base[kernel_block_0_index] = 0;
-	cache_flush();
-
-	// pmap_ungrab_page((vm_offset_t) phys_ttbr0_l0_base);
+	/*
+	 *	Release the pages used for the identity mapping,
+	 *	since we no longer need them.  This must be done
+	 *	in the reverse order compared to how we grabbed
+	 *	them above.
+	 */
+	pmap_ungrab_page((vm_offset_t) phys_ttbr0_l1_base);
+	pmap_ungrab_page((vm_offset_t) phys_ttbr0_l0_base);
 }
 
 void pmap_bootstrap_misc(void)
