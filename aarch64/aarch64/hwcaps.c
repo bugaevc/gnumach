@@ -206,8 +206,10 @@ void hwcaps_init(void)
 		hwcaps[0] |= HWCAP_SM4;
 	if (ID_AA64ISAR0_DP(id_aa64isar0) != ID_AA64ISAR0_DP_NONE)
 		hwcaps[0] |= HWCAP_ASIMDDP;
+	/*
 	if (ID_AA64PFR0_SVE(id_aa64pfr0) != ID_AA64PFR0_SVE_NONE)
 		hwcaps[0] |= HWCAP_SVE;
+	*/
 	if (ID_AA64ISAR0_FHM(id_aa64isar0) != ID_AA64ISAR0_FHM_NONE)
 		hwcaps[0] |= HWCAP_ASIMDFHM;
 	if (ID_AA64PFR0_DIT(id_aa64pfr0) != ID_AA64PFR0_DIT_NONE)
