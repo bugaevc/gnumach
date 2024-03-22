@@ -14,7 +14,7 @@
 #define ESR_EC(esr)		(((esr) >> 26) & 0x3f)
 /* Exception classes.  */
 #define ESR_EC_UNK		0x00		/* unknown reason */
-#define ESR_EC_FP		0x07		/* FP/AdvSIMD access when disabled */
+#define ESR_EC_FP_ACCESS	0x07		/* FP/AdvSIMD access when disabled */
 #define ESR_EC_BTI		0x0d		/* BTI failure */
 #define ESR_EC_ILL		0x0e		/* illegal execution state */
 #define ESR_EC_SVC64		0x15		/* SCV (syscall) */
@@ -26,6 +26,7 @@
 #define ESR_EC_DABT_LOWER_EL	0x24		/* data abort from lower EL */
 #define ESR_EC_DABT_SAME_EL	0x25		/* data abort from the same EL */
 #define ESR_EC_AL_SP		0x26		/* misaligned SP */
+#define ESR_EC_FP_EXC		0x2c		/* FP exception */
 #define ESR_EC_SERROR		0x2f		/* SError */
 #define ESR_EC_BRK_LOWER_EL	0x30		/* breakpoint from lower EL */
 #define ESR_EC_BRK_SAME_EL	0x31		/* breakpoint from the same EL */
@@ -41,10 +42,21 @@
 #define ESR_DABT_DFSC(esr)	((esr) & 0x3f)	/* data fault status code */
 
 #define ESR_DABT_DFSC_MTE	0x11		/* synchronous MTE tag check fault */
+#define ESR_DABT_DFSC_AL	0x21		/* alignment fault */
 
 #define ESR_DABT_WNR		0x40		/* "write, not read" bit */
 
 #define ESR_ABT_FNV		0x400		/* "FAR not valid" bit (both IABT & DABT) */
+
+#define ESR_FP_EXC_TFV(esr)	((esr) & 0x800000) /* other FP bits hols meaningful values */
+#define ESR_FP_EXC_IDF(esr)	((esr) & 0x80)	/* input denormal */
+#define ESR_FP_EXC_IXF(esr)	((esr) & 0x10)	/* inexact */
+#define ESR_FP_EXC_UFF(esr)	((esr) & 0x08)	/* underflow */
+#define ESR_FP_EXC_OFF(esr)	((esr) & 0x04)	/* overflow */
+#define ESR_FP_EXC_DZF(esr)	((esr) & 0x02)	/* divide by zero */
+#define ESR_FP_EXC_IOF(esr)	((esr) & 0x01)	/* invalid operation */
+
+#define ESR_BTI_BTYPE(esr)	((esr) & 0x3)	/* BTYPE that caused the BTI exception */
 
 static vm_prot_t esr_to_fault_type(unsigned long esr)
 {
@@ -97,6 +109,10 @@ void trap_fiq_el0(void)
 	thread_exception_return();
 }
 
+/*
+ *	TODO: what should we do when FAR crosses a page boundary?
+ */
+
 void trap_sync_exc_el0(void)
 {
 	pcb_t		pcb = current_thread()->pcb;
@@ -112,11 +128,11 @@ void trap_sync_exc_el0(void)
 	switch (ESR_EC(esr)) {
 		case ESR_EC_UNK:
 			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_UNK, 0);
-		case ESR_EC_FP:
+		case ESR_EC_FP_ACCESS:
 			fpu_access_trap();
 			thread_exception_return();
 		case ESR_EC_BTI:
-			exception(EXC_BAD_ACCESS, EXC_AARCH64_BTI, far);
+			exception(EXC_BAD_ACCESS, EXC_AARCH64_BTI, ESR_BTI_BTYPE(esr));
 		case ESR_EC_ILL:
 			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_ILL, far);
 		case ESR_EC_SVC64:
@@ -150,6 +166,8 @@ void trap_sync_exc_el0(void)
 				exception(EXC_BAD_ACCESS, KERN_INVALID_ADDRESS, far);
 			if (ESR_DABT_DFSC(esr) == ESR_DABT_DFSC_MTE)
 				exception(EXC_BAD_ACCESS, EXC_AARCH64_MTE, far);
+			if (ESR_DABT_DFSC(esr) == ESR_DABT_DFSC_AL)
+				exception(EXC_BAD_ACCESS, EXC_AARCH64_AL, far);
 			(void) vm_fault(current_map(), trunc_page(far),
 					esr_to_fault_type(esr),
 					FALSE, FALSE,
@@ -160,6 +178,22 @@ void trap_sync_exc_el0(void)
 		case ESR_EC_AL_SP:
 			/* Doesn't write to FAR.  */
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_AL_SP, pcb->ats.sp);
+		case ESR_EC_FP_EXC:
+			if (!ESR_FP_EXC_TFV(esr))
+				exception(EXC_ARITHMETIC, 0, 0);
+			/* Otherwise, we can look at what it is.  */
+			if (ESR_FP_EXC_IDF(esr))
+				exception(EXC_ARITHMETIC, EXC_AARCH64_IDF, 0);
+			if (ESR_FP_EXC_UFF(esr))
+				exception(EXC_ARITHMETIC, EXC_AARCH64_UFF, 0);
+			if (ESR_FP_EXC_OFF(esr))
+				exception(EXC_ARITHMETIC, EXC_AARCH64_OFF, 0);
+			if (ESR_FP_EXC_DZF(esr))
+				exception(EXC_ARITHMETIC, EXC_AARCH64_DZF, 0);
+			if (ESR_FP_EXC_IOF(esr))
+				exception(EXC_ARITHMETIC, EXC_AARCH64_IOF, 0);
+			/* Huh? */
+			exception(EXC_ARITHMETIC, 0, 0);
 		case ESR_EC_SERROR:
 			panic("SError in sync exc handler\n");
 		case ESR_EC_BRK_LOWER_EL:

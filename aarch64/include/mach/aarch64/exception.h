@@ -35,12 +35,12 @@
  *	EXC_ARITHMETIC
  */
 
-#define EXC_AARCH64_FP_ID		1	/* input denormal, IDF bit */
-#define EXC_AARCH64_FP_IX		2	/* inexact, IXF bit */
-#define EXC_AARCH64_FP_UF		3	/* underflow, UFF bit */
-#define EXC_AARCH64_FP_OF		4	/* overflow, OFF bit */
-#define EXC_AARCH64_FP_DZ		5	/* divide by zero, DZF bit */
-#define EXC_AARCH64_FP_IO		6	/* invalid operation, IOF bit */
+#define EXC_AARCH64_IDF			1	/* input denormal, IDF bit */
+#define EXC_AARCH64_IXF			2	/* inexact, IXF bit */
+#define EXC_AARCH64_UFF			3	/* underflow, UFF bit */
+#define EXC_AARCH64_OFF			4	/* overflow, OFF bit */
+#define EXC_AARCH64_DZF			5	/* divide by zero, DZF bit */
+#define EXC_AARCH64_IOF			6	/* invalid operation, IOF bit */
 
 /*
  *	EXC_SOFTWARE
@@ -54,12 +54,12 @@
  *	values can be used as exception code instead; they must not conflict
  *	with kern_return_t values.
  */
-#define EXC_AARCH64_AL_FAULT		100	/* alignment fault */
+#define EXC_AARCH64_AL			100	/* alignment fault */
 #define EXC_AARCH64_AL_PC		101	/* misaligned pc */
 #define EXC_AARCH64_AL_SP		102	/* misaligned sp */
 #define EXC_AARCH64_PAC			103	/* PAC failure */
 #define EXC_AARCH64_MTE			104	/* MTE failure */
-#define EXC_AARCH64_BTI			105	/* BTI failure */
+#define EXC_AARCH64_BTI			105	/* BTI failure, subcode contains BTYPE */
 
 /*
  *	EXC_BREAKPOINT
