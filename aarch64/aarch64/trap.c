@@ -28,8 +28,11 @@
 #define ESR_EC_AL_SP		0x26		/* misaligned SP */
 #define ESR_EC_FP_EXC		0x2c		/* FP exception */
 #define ESR_EC_SERROR		0x2f		/* SError */
-#define ESR_EC_BRK_LOWER_EL	0x30		/* breakpoint from lower EL */
-#define ESR_EC_BRK_SAME_EL	0x31		/* breakpoint from the same EL */
+#define ESR_EC_BPT_LOWER_EL	0x30		/* breakpoint from lower EL */
+#define ESR_EC_BPT_SAME_EL	0x31		/* breakpoint from the same EL */
+#define ESR_EC_SSTEP_LOWER_EL	0x32		/* software single step from lower EL */
+#define ESR_EC_SSTEP_SAME_EL	0x33		/* software single step from the same EL */
+#define ESR_EC_BRK		0x3c		/* BRK */
 
 #define ESR_IABT_IFSC(esr)	((esr) & 0x3f)	/* instruction fault status code */
 
@@ -57,6 +60,8 @@
 #define ESR_FP_EXC_IOF(esr)	((esr) & 0x01)	/* invalid operation */
 
 #define ESR_BTI_BTYPE(esr)	((esr) & 0x3)	/* BTYPE that caused the BTI exception */
+
+#define ESR_BRK_IMM(esr)	((esr) & 0xffff)
 
 static vm_prot_t esr_to_fault_type(unsigned long esr)
 {
@@ -196,10 +201,24 @@ void trap_sync_exc_el0(void)
 			exception(EXC_ARITHMETIC, 0, 0);
 		case ESR_EC_SERROR:
 			panic("SError in sync exc handler\n");
-		case ESR_EC_BRK_LOWER_EL:
+		/*
+		case ESR_EC_BPT_LOWER_EL:
 			exception(EXC_BREAKPOINT, EXC_AARCH64_BRK, far);
-		case ESR_EC_BRK_SAME_EL:
+		*/
+		case ESR_EC_BPT_SAME_EL:
 			panic("Same EL exception in EL0 handler\n");
+		case ESR_EC_SSTEP_LOWER_EL:
+			/*
+			 *	TODO: need a userspace API to set/unset the MDSCR_EL1.SS bit,
+			 *	perhaps as a part of aarch64_debug_state.
+			 *	Unset it here before taking the exception.
+			 *	https://lore.kernel.org/all/CAFEAcA8QmsHfxAdUQET2Oab_xXa7x4i4C4+_6Y-J8ZNs1t5pPg@mail.gmail.com/
+			 */
+			exception(EXC_BREAKPOINT, EXC_AARCH64_SSTEP, 0);
+		case ESR_EC_SSTEP_SAME_EL:
+			panic("Same EL exception in EL0 handler\n");
+		case ESR_EC_BRK:
+			exception(EXC_BREAKPOINT, EXC_AARCH64_BRK, ESR_BRK_IMM(esr));
 		default:
 			printf("Unhandled exception!\n");
 			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_UNK, far);

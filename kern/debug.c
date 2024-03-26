@@ -97,7 +97,7 @@ void SoftDebugger(const char *message)
 #endif
 
 #if defined(__aarch64__)
-	asm volatile("bkpt");
+	asm volatile("brk #0x400");
 #endif
 }
 
