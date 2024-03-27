@@ -67,6 +67,8 @@ static inline void spl7_irq(void)
 #define spl5		spl7
 #define spl6		spl7
 
+#define assert_splsched() assert(splsched() == SPL7)
+
 extern int spl_init;
 
 static inline void setsoftclock(void)

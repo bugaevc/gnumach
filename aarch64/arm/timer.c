@@ -1,7 +1,9 @@
 #include "arm/timer.h"
 #include "aarch64/irq.h"
-#include <kern/assert.h>
+#include "aarch64/percpu.h"
 #include "aarch64/mach_param.h" /* HZ */
+#include <kern/thread.h>
+#include <kern/assert.h>
 #include <kern/mach_clock.h>
 #include <string.h>
 

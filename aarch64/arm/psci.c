@@ -1,5 +1,6 @@
 #include "arm/psci.h"
 #include <device/dtb.h>
+#include <kern/debug.h>
 #include <string.h>
 
 #define PSCI_VERSION		0x84000000

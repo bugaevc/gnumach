@@ -1,7 +1,10 @@
 #include "arm/gic-v2.h"
 #include "aarch64/irq.h"
+#include "aarch64/vm_param.h"
+#include <kern/kalloc.h>
 #include <kern/printf.h>
 #include <string.h>
+#include <stddef.h>
 
 #define GICD_CTLR		0x000
 #define GICD_ISENABLER		0x100

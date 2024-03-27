@@ -1,7 +1,6 @@
 void constab() {}
 void delay() {}
 void __disable_irq() {}
-void dump_ss() {}
 void __enable_irq() {}
 void intnull() {}
 void pmap_change_wiring() {}

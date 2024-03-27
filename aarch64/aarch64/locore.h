@@ -20,6 +20,8 @@
 #define _AARCH64_LOCORE_
 
 #include <mach/mach_types.h>
+#include <kern/sched_prim.h>
+#include <stddef.h>
 
 /*
  *	Fault recovery in copyin/copyout routines.
@@ -33,10 +35,8 @@ struct recovery {
 extern const struct recovery recover_table[];
 extern const struct recovery recover_table_end[];
 
-int copyin (const void *userbuf, void *kernelbuf, size_t cn);
-int copyinmsg (const void *userbuf, void *kernelbuf, size_t cn, size_t kn);
-int copyout (const void *kernelbuf, void *userbuf, size_t cn);
-int copyoutmsg (const void *kernelbuf, void *userbuf, size_t cn);
+int copyin(const void *userbuf, void *kernelbuf, size_t cn);
+int copyout(const void *kernelbuf, void *userbuf, size_t cn);
 
 extern void __attribute__((noreturn)) call_continuation(continuation_t continuation);
 extern boolean_t handle_syscall(struct aarch64_thread_state *ats);

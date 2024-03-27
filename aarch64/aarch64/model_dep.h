@@ -21,7 +21,9 @@
 
 #include <mach/std_types.h>
 #include <device/dtb.h>
+#include <mach/vm_prot.h>
 #include "arm/timer.h"		/* startrtclock() */
+#include <sys/types.h>		/* dev_t */
 
 /*
  * Find devices.  The system is alive.

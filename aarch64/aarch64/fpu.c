@@ -1,5 +1,6 @@
 #include "aarch64/fpu.h"
 #include "aarch64/locore.h"
+#include <kern/slab.h>
 #include <string.h>
 
 #define FPEN_TRAP_MASK			0x300000

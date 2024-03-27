@@ -1,5 +1,4 @@
 #include "machine/trap.h"
-#include "aarch64/model_dep.h"
 #include "aarch64/locore.h"
 #include "aarch64/fpu.h"
 #include "aarch64/irq.h"

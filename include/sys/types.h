@@ -40,12 +40,6 @@ typedef integer_t ssize_t;
 #endif
 
 typedef	unsigned short	dev_t;		/* device id */
-typedef	unsigned long	gid_t;		/* group id */
-typedef	unsigned long	ino_t;		/* inode number */
-typedef	unsigned short	mode_t;		/* permissions */
-typedef	unsigned short	nlink_t;	/* link count */
-typedef	natural_t	off_t;		/* file offset */
-typedef	unsigned long	uid_t;		/* user id */
 
 
 /* Symbols allowed but not required by POSIX */
