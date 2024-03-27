@@ -5,7 +5,6 @@ void __enable_irq() {}
 void intnull() {}
 void pmap_change_wiring() {}
 void pmap_collect() {}
-void pmap_copy() {}
 void pmap_map_bd() {}
 void pmap_pageable() {}
 void resettodr() {}
