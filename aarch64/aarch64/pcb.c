@@ -21,11 +21,14 @@
 #define SPSR_A			0x100		/* SError masked */
 #define SPSR_D			0x200		/* debug exceptions masked */
 #define SPSR_DAIF		(SPSR_D | SPSR_A | SPSR_I | SPSR_F)
+#define SPSR_AIF		(SPSR_A | SPSR_I | SPSR_F)
 
 #define SPSR_ALLINT		0x2000
 
 #define SPSR_PAN		0x400000	/* privileged access never */
 #define SPSR_UAO		0x800000	/* user access override */
+
+#define SPSR_RES		0xffffffff080fc020
 
 
 /* Top of active stack (high address).  */
@@ -229,10 +232,21 @@ kern_return_t thread_setstatus(
 			if (SPSR_M_AARCH(ats->cpsr) != SPSR_M_AARCH_AARCH64)
 				return KERN_INVALID_ARGUMENT;
 
-			if (ats->cpsr & SPSR_DAIF)
+			/*
+			 *	Let userland mask debug exceptions if they
+			 *	so want, but not IRQs, FIQs, or SErrors.
+			 */
+			if (ats->cpsr & SPSR_AIF)
+				return KERN_INVALID_ARGUMENT;
+			if (ats->cpsr & SPSR_ALLINT)
 				return KERN_INVALID_ARGUMENT;
 
-			if (ats->cpsr >> 32)
+			/*
+			 *	Allow setting reserved bits to either 0 or
+			 *	the value it already had.  In other words,
+			 *	disallow setting any new reserved bits.
+			 */
+			if (ats->cpsr & SPSR_RES & ~USER_REGS(thread)->cpsr)
 				return KERN_INVALID_ARGUMENT;
 
 			/*
