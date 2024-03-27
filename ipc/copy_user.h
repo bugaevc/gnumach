@@ -25,6 +25,21 @@
 #include <machine/locore.h>
 #include <mach/message.h>
 
+int copyinmsg(
+	const void	*userbuf,
+	void		*kernelbuf,
+	size_t		usize,
+	size_t		ksize);
+
+#ifdef USER32
+int copyoutmsg(
+	const void	*kernelbuf,
+	void		*userbuf,
+	size_t		ksize);
+#else
+#define copyoutmsg	copyout
+#endif
+
 /*
  * The copyin_32to64() and copyout_64to32() routines are meant for data types
  * that have different size in kernel and user space. They should be independent
