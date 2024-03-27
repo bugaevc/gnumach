@@ -43,6 +43,8 @@
 #include <kern/task.h>
 #include <kern/thread.h>
 #include <machine/spl.h>	/* for splsched */
+#include <machine/locore.h>	/* for copyin */
+#include <string.h>
 
 #if	MACH_FIXPRI
 #include <mach/policy.h>
@@ -379,8 +381,47 @@ thread_depress_abort(thread_t thread)
  */
 #ifdef MACH_KDB
 void
-mach_print(const char *s)
+mach_print(vm_offset_t s)
 {
-	printf("%s", s);
+	char		buffer[256];
+	vm_size_t	filled = 0, copyin_size;
+
+	/*
+	 *	What we really want to do here is basically
+	 *
+	 *		printf("%s", s);
+	 *
+	 *	but we can't access user memory directly.  So, copy out
+	 *	characters into a buffer, until we find the nul
+	 *	terminator byte.  We must make sure we're not crossing
+	 *	any page boundaries unless we're sure the nul terminator
+	 *	is not present on the previous page.  We only print the
+	 *	copied data in chunks of sizeof(buffer), to provide some
+	 *	atomicity for reasonably short strings wrt concurrent
+	 *	prints.
+	 */
+
+	while (TRUE) {
+		copyin_size = vm_page_aligned(s) ? PAGE_SIZE
+						 : (vm_page_round(s) - s);
+		copyin_size = MIN(copyin_size, sizeof(buffer) - filled);
+		if (copyin((const void *) s, buffer + filled, copyin_size))
+			return /* KERN_INVALID_ADDRESS */;
+
+		if (strnlen(buffer + filled, copyin_size) != copyin_size) {
+			/*
+			 *	Found the nul terminator.
+			 *	Print the string and exit.
+			 */
+			printf("%s", buffer);
+			return;
+		}
+		filled += copyin_size;
+		s += copyin_size;
+		if (filled == sizeof(buffer)) {
+			printf("%.*s", (int) sizeof(buffer), buffer);
+			filled = 0;
+		}
+	}
 }
 #endif /* MACH_KDB */
