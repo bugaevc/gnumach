@@ -50,6 +50,8 @@ extern int strncmp (const char *s1, const char *s2, size_t n) __attribute__ ((pu
 
 extern size_t strlen (const char *s) __attribute__ ((pure));
 
+extern size_t strnlen (const char *s, size_t n) __attribute__ ((pure));
+
 extern char *strstr(const char *haystack, const char *needle);
 
 #endif /* _MACH_SA_SYS_STRING_H_ */

@@ -39,6 +39,7 @@
 #undef strcpy
 #undef strncpy
 #undef strlen
+#undef strnlen
 #endif
 
 /*
@@ -171,6 +172,28 @@ strlen(
 		continue;
 
 	return string - 1 - ret;
+}
+
+/*
+ * Abstract:
+ *	strnlen returns the number of characters in "string" preceding
+ *	the terminating null character, but examines at most "n" bytes.
+ *	If a null character is not found among the first "n" bytes,
+ *	returns "n".
+ */
+
+size_t __attribute__ ((pure))
+strnlen(
+	const char *string,
+	size_t n)
+{
+	size_t len;
+
+	for (len = 0; len < n; len++)
+		if (string[len] == '\0')
+			return len;
+
+	return n;
 }
 
 /*
