@@ -128,8 +128,11 @@
 #define ID_AA64MMFR1_PAN_PAN2		0x2			/* PAN + PAN2 supported */
 #define ID_AA64MMFR1_PAN_PAN3		0x3			/* PAN + PAN2 + PAN3 supported */
 
+#define ID_AA64MMFR2_UAO(v)		(((v) >> 4) & 0xf)
 #define ID_AA64MMFR2_AT(v)		(((v) >> 32) & 0xf)
 
+#define ID_AA64MMFR2_UAO_NONE		0x0			/* UAO not supported */
+#define ID_AA64MMFR2_UAO_UAO		0x1			/* UAO supported */
 #define ID_AA64MMFR2_AT_NONE		0x0			/* AT not supported */
 #define ID_AA64MMFR2_AT_AT		0x1			/* AT supported */
 
@@ -263,9 +266,12 @@ void hwcaps_init(void)
 		 *	PAN is supported, enable it.
 		 */
 		asm volatile(".word 0xd500419f");	/* msr PAN, #1 */
+		hwcap_internal |= HWCAP_INT_PAN;
 	}
 	if (ID_AA64MMFR1_PAN(id_aa64mmfr1) >= ID_AA64MMFR1_PAN_PAN3)
 		hwcap_internal |= HWCAP_INT_EPAN;
 	if (ID_AA64MMFR1_ASID(id_aa64mmfr1) == ID_AA64MMFR1_ASID_16)
 		hwcap_internal |= HWCAP_INT_ASID16;
+	if (ID_AA64MMFR2_UAO(id_aa64mmfr2) != ID_AA64MMFR2_UAO_NONE)
+		hwcap_internal |= HWCAP_INT_UAO;
 }

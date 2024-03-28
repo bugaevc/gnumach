@@ -2,33 +2,48 @@
 #include "aarch64/vm_param.h"
 #include "aarch64/pmap.h"
 #include "aarch64/fpu.h"
+#include "aarch64/hwcaps.h"
 #include <vm/vm_map.h>
 #include <kern/slab.h>
 #include <kern/counters.h>
 #include <string.h>
 
-#define SPSR_M_EL(spsr)		((spsr) & 0xf)
-#define SPSR_M_EL_EL0		0x0		/* EL0 */
-#define SPSR_M_EL_EL1_SP_EL0	0x4		/* EL1 with SP_EL0 */
-#define SPSR_M_EL_EL1_SP_EL1	0x5		/* EL1 with SP_EL1 */
+#define SPSR_SPSEL(spsr)	((spsr) & 0x1)	/* select sp: */
+#define SPSR_SPSEL_0		0x00000000	/* ...sp = SP_EL0 */
+#define SPSR_SPSEL_N		00000000x1	/* ...sp = SP_ELn */
 
-#define SPSR_M_AARCH(spsr)	((spsr) & 0x10)
-#define SPSR_M_AARCH_AARCH64	0x00		/* AArch64 */
-#define SPSR_M_AARCH_AARCH32	0x10		/* AArch32 */
+#define SPSR_EL(spsr)		(((spsr) & 0xc) >> 2)	/* exception level, 0 to 3 */
 
-#define SPSR_F			0x040		/* FIQ masked */
-#define SPSR_I			0x080		/* IRQ masked */
-#define SPSR_A			0x100		/* SError masked */
-#define SPSR_D			0x200		/* debug exceptions masked */
+#define SPSR_NRW(spsr)		((spsr) & 0x10)	/* "not register width": */
+#define SPSR_NRW_64		0x00000000	/* ...AArch64 */
+#define SPSR_NRW_32		0x00000010	/* ...AArch32 */
+				/* a reserved bit here */
+#define SPSR_F			0x00000040	/* FIQ masked */
+#define SPSR_I			0x00000080	/* IRQ masked */
+#define SPSR_A			0x00000100	/* SError masked */
+#define SPSR_D			0x00000200	/* debug exceptions masked */
 #define SPSR_DAIF		(SPSR_D | SPSR_A | SPSR_I | SPSR_F)
 #define SPSR_AIF		(SPSR_A | SPSR_I | SPSR_F)
 
-#define SPSR_ALLINT		0x2000
+#define SPSR_BTYPE_MASK		0x00000c00	/* branch type indicator (BTI) */
 
-#define SPSR_PAN		0x400000	/* privileged access never */
-#define SPSR_UAO		0x800000	/* user access override */
+#define SPSR_SSBS		0x00001000	/* speculative store bypass safe */
+#define SPSR_ALLINT		0x00002000	/* IRQ and FIQ masked */
+				/* reserved bits here */
+#define SPSR_IL			0x00100000	/* illegal execution state */
+#define SPSR_SS			0x00200000	/* software single step */
+#define SPSR_PAN		0x00400000	/* privileged access never */
+#define SPSR_UAO		0x00800000	/* user access override */
+#define SPSR_DIT		0x01000000	/* data independent timing */
+#define SPSR_TCO		0x02000000	/* tag check override (MTE) */
+				/* reserved bits here */
+#define SPSR_V			0x10000000	/* overflow condition */
+#define SPSR_C			0x20000000	/* carry condition */
+#define SPSR_Z			0x40000000	/* zero condition */
+#define SPSR_N			0x80000000	/* negative condition */
+#define SPSR_NZCV		(SPSR_N | SPSR_Z | SPSR_C | SPSR_V)
 
-#define SPSR_RES		0xffffffff080fc020
+#define SPSR_RES0		0xffffffff080fc020
 
 
 /* Top of active stack (high address).  */
@@ -202,6 +217,89 @@ kern_return_t thread_getstatus(
 	}
 }
 
+/*
+ *	validate_cpsr:
+ *
+ *	Check the CPSR the user is trying to set for
+ *	any disallowed/privileged/reserved bits.
+ */
+static boolean_t validate_cpsr(long cpsr, long old_cpsr)
+{
+	long		res0 = SPSR_RES0;
+
+	/*
+	 *	Make sure the CPSR indicates a valid state,
+	 *	specifically EL0 AArch64.
+	 *
+	 *	Note that both SPSR_EL() = 0 and SPSR_NRW_64
+	 *	have a zero bit pattern, so just initializing
+	 *	CPSR to 0 should pass the checks successfully.
+	 */
+	if (SPSR_EL(cpsr) != 0)
+		return FALSE;
+	if (SPSR_NRW(cpsr) != SPSR_NRW_64)
+		return FALSE;
+
+	/*
+	 *	Let userland mask debug exceptions if they
+	 *	so want, but not IRQs, FIQs, or SErrors.
+	 */
+	if (cpsr & SPSR_AIF)
+		return FALSE;
+	if (cpsr & SPSR_ALLINT)
+		return FALSE;
+
+	/*
+	 *	SPSR_BTYPE:
+	 *		OK to set if we have HWCAP2_BTI.
+	 *	SPSR_SSBS:
+	 *		OK to set if we have HWCAP_SSBS.
+	 *		Resets to 0 or 1 on exception entry
+	 *		according to SCTLR_SSBS.
+	 *	SPSR_IL:
+	 *		OK (and fun) to set.
+	 *	SPSR_SS:
+	 *		OK to set.
+	 *	SPSR_PAN:
+	 *		OK to set if we have HWCAP_INT_PAN.
+	 *		Doesn't affect EL0.
+	 *		Resets to 1 (given SCTLR_SPAN is unset)
+	 *		on exception entry.
+	 *	SPSR_UAO:
+	 *		OK to set if we have HWCAP_INT_UAO.
+	 *		Doesn't affect EL0.
+	 *		Resets to 0 on exception entry.
+	 *	SPSR_DIT:
+	 *		OK to set if we have HWCAP_DIT.
+	 *	SPSR_TCO:
+	 *		OK to set if we have HWCAP2_MTE.
+	 *	SPSR_NZCV:
+	 *		OK to set.
+	 */
+	if (!(hwcaps[1] & HWCAP2_BTI))
+		res0 |= SPSR_BTYPE_MASK;
+	if (!(hwcaps[0] & HWCAP_SSBS))
+		res0 |= SPSR_SSBS;
+	if (!(hwcap_internal & HWCAP_INT_PAN))
+		res0 |= SPSR_PAN;
+	if (!(hwcap_internal & HWCAP_INT_UAO))
+		res0 |= SPSR_UAO;
+	if (!(hwcaps[0] & HWCAP_DIT))
+		res0 |= SPSR_DIT;
+	if (!(hwcaps[1] & HWCAP2_MTE))
+		res0 |= SPSR_TCO;
+
+	/*
+	 *	Allow setting reserved bits to either 0 or
+	 *	the value it already had.  In other words,
+	 *	disallow setting any new reserved bits.
+	 */
+	if (cpsr & res0 & ~old_cpsr)
+		return FALSE;
+
+	return TRUE;
+}
+
 kern_return_t thread_setstatus(
 	thread_t	thread,
 	int		flavor,
@@ -218,44 +316,8 @@ kern_return_t thread_setstatus(
 				return KERN_INVALID_ARGUMENT;
 			ats = (struct aarch64_thread_state *) tstate;
 
-			/*
-			 *	Make sure the PSR indicates a valid state,
-			 *	specifically EL0 AArch64.
-			 *
-			 *	Note that both SPSR_M_EL_EL0 and
-			 *	SPSR_M_AARCH_AARCH64 have a zero bit pattern,
-			 *	so just initializing ats->cpsr to 0 should
-			 *	pass the checks successfully.
-			 */
-			if (SPSR_M_EL(ats->cpsr) != SPSR_M_EL_EL0)
+			if (!validate_cpsr(ats->cpsr, USER_REGS(thread)->cpsr))
 				return KERN_INVALID_ARGUMENT;
-			if (SPSR_M_AARCH(ats->cpsr) != SPSR_M_AARCH_AARCH64)
-				return KERN_INVALID_ARGUMENT;
-
-			/*
-			 *	Let userland mask debug exceptions if they
-			 *	so want, but not IRQs, FIQs, or SErrors.
-			 */
-			if (ats->cpsr & SPSR_AIF)
-				return KERN_INVALID_ARGUMENT;
-			if (ats->cpsr & SPSR_ALLINT)
-				return KERN_INVALID_ARGUMENT;
-
-			/*
-			 *	Allow setting reserved bits to either 0 or
-			 *	the value it already had.  In other words,
-			 *	disallow setting any new reserved bits.
-			 */
-			if (ats->cpsr & SPSR_RES & ~USER_REGS(thread)->cpsr)
-				return KERN_INVALID_ARGUMENT;
-
-			/*
-			 *	Note that PAN and UAO don't have any effect
-			 *	on code running in EL0, and will be reset
-			 *	to 1 / 0 upon exception entry.
-			 */
-
-			/* TODO: audit all the other bits */
 
 			memcpy(USER_REGS(thread), ats, sizeof(struct aarch64_thread_state));
 			return KERN_SUCCESS;

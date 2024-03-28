@@ -15,7 +15,7 @@
 #define ESR_EC_UNK		0x00		/* unknown reason */
 #define ESR_EC_FP_ACCESS	0x07		/* FP/AdvSIMD access when disabled */
 #define ESR_EC_BTI		0x0d		/* BTI failure */
-#define ESR_EC_ILL		0x0e		/* illegal execution state */
+#define ESR_EC_IL		0x0e		/* illegal execution state */
 #define ESR_EC_SVC64		0x15		/* SCV (syscall) */
 #define ESR_EC_MRS		0x18		/* MRS or MRS (or cache?) */
 #define ESR_EC_PAC		0x1c		/* PAC failure */
@@ -137,14 +137,14 @@ void trap_sync_exc_el0(void)
 			thread_exception_return();
 		case ESR_EC_BTI:
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_BTI, ESR_BTI_BTYPE(esr));
-		case ESR_EC_ILL:
-			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_ILL, far);
+		case ESR_EC_IL:
+			exception(EXC_SOFTWARE, EXC_AARCH64_IL, 0);
 		case ESR_EC_SVC64:
 			imm16 = esr & 0xf;
 			/* "svc #0" is a syscall */
 			if (likely(imm16 == 0) && handle_syscall(&pcb->ats))
 				thread_exception_return();
-			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_SVC, 0);
+			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_SVC, imm16);
 		case ESR_EC_MRS:
 			/* We may add a special code for this (EXC_AARCH64_MRS?) */
 			exception(EXC_BAD_INSTRUCTION, 0, 0);
@@ -163,6 +163,10 @@ void trap_sync_exc_el0(void)
 		case ESR_EC_IABT_SAME_EL:
 			panic("Same EL exception in EL0 handler\n");
 		case ESR_EC_AL_PC:
+			/*
+			 *	The misaligned PC value has been written into
+			 *	FAR, and pcb->ats->pc has been re-aligned.
+			 */
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_AL_PC, far);
 		case ESR_EC_DABT_LOWER_EL:
 			/* Data fault.  */

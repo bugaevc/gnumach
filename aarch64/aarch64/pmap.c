@@ -81,6 +81,7 @@ struct pmap {
 #define SCTLR_ENIA		0x0000000080000000UL	/* PAC */
 #define SCTLR_BT0		0x0000000800000000UL	/* enable BTI-on-PACI?SP traps in EL0 */
 #define SCTLR_BT1		0x0000001000000000UL	/* enable BTI-on-PACI?SP traps in EL1 */
+#define SCTLR_SSBS		0x0000100000000000UL	/* set SSBS to 1 on exception to EL1 (otherwise, to 0) */
 #define SCTLR_EPAN		0x0200000000000000UL	/* enable EPAN */
 
 #define TTBR_ASID(x)		(((x) >> 48) & 0xff)
@@ -422,6 +423,8 @@ void __attribute__((target("branch-protection=none"))) pmap_bootstrap(void)
 	sctlr = SCTLR_M | SCTLR_SA | SCTLR_SA0 | SCTLR_UCT | SCTLR_UCI | SCTLR_BT1;
 	if (hwcap_internal & HWCAP_INT_EPAN)
 		sctlr |= SCTLR_EPAN;
+	if (hwcaps[0] & HWCAP_SSBS)
+		sctlr |= SCTLR_SSBS;
 
 	/* Enable the MMU.  */
 	asm volatile("msr MAIR_EL1, %0" :: "r"(MAIR_VALUE));

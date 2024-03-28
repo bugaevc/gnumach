@@ -28,8 +28,7 @@
  */
 
 #define EXC_AARCH64_UNK			1	/* unknown reason (unallocated instruction) */
-#define EXC_AARCH64_ILL			2	/* illegal execution state */
-#define EXC_AARCH64_SVC			3	/* SVC that's not a valid syscall */
+#define EXC_AARCH64_SVC			2	/* SVC that's not a valid syscall, subcode contains immediate */
 
 /*
  *	EXC_ARITHMETIC
@@ -46,6 +45,8 @@
  *	EXC_SOFTWARE
  */
 
+#define EXC_AARCH64_IL			1	/* illegal execution state (PSTATE.IL set) */
+
 /*
  *	EXC_BAD_ACCESS
  *
@@ -54,6 +55,7 @@
  *	values can be used as exception code instead; they must not conflict
  *	with kern_return_t values.
  */
+
 #define EXC_AARCH64_AL			100	/* alignment fault */
 #define EXC_AARCH64_AL_PC		101	/* misaligned pc */
 #define EXC_AARCH64_AL_SP		102	/* misaligned sp */
