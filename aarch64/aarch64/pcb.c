@@ -258,6 +258,7 @@ static boolean_t validate_cpsr(long cpsr, long old_cpsr)
 	 *		according to SCTLR_SSBS.
 	 *	SPSR_IL:
 	 *		OK (and fun) to set.
+	 *		Will cause an immediate EXC_AARCH64_IL.
 	 *	SPSR_SS:
 	 *		OK to set.
 	 *	SPSR_PAN:

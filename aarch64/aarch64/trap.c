@@ -29,8 +29,8 @@
 #define ESR_EC_SERROR		0x2f		/* SError */
 #define ESR_EC_BPT_LOWER_EL	0x30		/* breakpoint from lower EL */
 #define ESR_EC_BPT_SAME_EL	0x31		/* breakpoint from the same EL */
-#define ESR_EC_SSTEP_LOWER_EL	0x32		/* software single step from lower EL */
-#define ESR_EC_SSTEP_SAME_EL	0x33		/* software single step from the same EL */
+#define ESR_EC_SS_LOWER_EL	0x32		/* software single step from lower EL */
+#define ESR_EC_SS_SAME_EL	0x33		/* software single step from the same EL */
 #define ESR_EC_BRK		0x3c		/* BRK */
 
 #define ESR_IABT_IFSC(esr)	((esr) & 0x3f)	/* instruction fault status code */
@@ -43,10 +43,15 @@
 
 #define ESR_DABT_DFSC(esr)	((esr) & 0x3f)	/* data fault status code */
 
+#define ESR_DABT_DFSC_PERM_L0	0x0c		/* permission fault, level 0 */
+#define ESR_DABT_DFSC_PERM_L1	0x0d		/* permission fault, level 1 */
+#define ESR_DABT_DFSC_PERM_L2	0x0e		/* permission fault, level 2 */
+#define ESR_DABT_DFSC_PERM_L3	0x0f		/* permission fault, level 3 */
 #define ESR_DABT_DFSC_MTE	0x11		/* synchronous MTE tag check fault */
 #define ESR_DABT_DFSC_AL	0x21		/* alignment fault */
 
-#define ESR_DABT_WNR		0x40		/* "write, not read" bit */
+#define ESR_DABT_WNR		0x040		/* "write, not read" bit */
+#define ESR_DABT_CM		0x100		/* it was a cache maintenance operation */
 
 #define ESR_ABT_FNV		0x400		/* "FAR not valid" bit (both IABT & DABT) */
 
@@ -60,21 +65,41 @@
 
 #define ESR_BTI_BTYPE(esr)	((esr) & 0x3)	/* BTYPE that caused the BTI exception */
 
+#define ESR_SS_ISV(esr)		((esr) & 0x1000000) /* EX holds a meaningful value */
+#define ESR_SS_EX(esr)		((esr) & 0x40)	/* stepped instruction was load-exclusive */
+
 #define ESR_BRK_IMM(esr)	((esr) & 0xffff)
 
-static vm_prot_t esr_to_fault_type(unsigned long esr)
+static inline vm_prot_t fault_prot(unsigned long esr)
 {
-	switch (ESR_EC(esr)) {
-		case ESR_EC_IABT_LOWER_EL:
-			return VM_PROT_EXECUTE;
-		case ESR_EC_DABT_LOWER_EL:
-		case ESR_EC_DABT_SAME_EL:
-			if (esr & ESR_DABT_WNR)
-				return VM_PROT_WRITE;
-			return VM_PROT_READ;
-		default:
-			panic("Unexpected exception class\n");
-	}
+	/* Instruction aborts only need execute permission.  */
+	if (ESR_EC(esr) == ESR_EC_IABT_LOWER_EL)
+		return VM_PROT_EXECUTE;
+
+	assert(ESR_EC(esr) == ESR_EC_DABT_LOWER_EL
+	       || ESR_EC(esr) == ESR_EC_DABT_SAME_EL);
+
+	/* If WNR is unset, it's a read fault.  */
+	if (!(esr & ESR_DABT_WNR))
+		return VM_PROT_READ;
+
+	/*
+	 *	WNR is set if this was either an actual write fault,
+	 *	or a cache maintenance operation.  So if it's not one,
+	 *	which is the common case, it's a write fault.
+	 */
+	if (likely(!(esr & ESR_DABT_CM)))
+		return VM_PROT_WRITE;
+
+	/*
+	 *	For cache maintenance operations, check if DFSC
+	 *	indicates a permission fault, and only treat it as a
+	 *	write fault in that case.
+	 */
+	if (ESR_DABT_DFSC(esr) >= ESR_DABT_DFSC_PERM_L0
+	    && ESR_DABT_DFSC(esr) <= ESR_DABT_DFSC_PERM_L3)
+		return VM_PROT_WRITE;
+	return VM_PROT_READ;
 }
 
 static void user_page_fault_continue(kern_return_t kr)
@@ -138,6 +163,12 @@ void trap_sync_exc_el0(void)
 		case ESR_EC_BTI:
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_BTI, ESR_BTI_BTYPE(esr));
 		case ESR_EC_IL:
+			/*
+			 *	The only way to get one of these from EL0 is
+			 *	to ask for it explicitly by setting CPSR.IL
+			 *	with a thread_set_state() call.  So we classify
+			 *	it as EXC_SOFTWARE.
+			 */
 			exception(EXC_SOFTWARE, EXC_AARCH64_IL, 0);
 		case ESR_EC_SVC64:
 			imm16 = esr & 0xf;
@@ -156,17 +187,14 @@ void trap_sync_exc_el0(void)
 			if (far >= VM_MAX_USER_ADDRESS)
 				exception(EXC_BAD_ACCESS, KERN_INVALID_ADDRESS, far);
 			(void) vm_fault(current_map(), trunc_page(far),
-					esr_to_fault_type(esr),
+					fault_prot(esr),
 					FALSE, FALSE,
 					user_page_fault_continue);
 			__builtin_unreachable();
 		case ESR_EC_IABT_SAME_EL:
 			panic("Same EL exception in EL0 handler\n");
 		case ESR_EC_AL_PC:
-			/*
-			 *	The misaligned PC value has been written into
-			 *	FAR, and pcb->ats->pc has been re-aligned.
-			 */
+			/* FAR and pcb->ats->pc both hold the misaligned PC value.  */
 			exception(EXC_BAD_ACCESS, EXC_AARCH64_AL_PC, far);
 		case ESR_EC_DABT_LOWER_EL:
 			/* Data fault.  */
@@ -177,7 +205,7 @@ void trap_sync_exc_el0(void)
 			if (ESR_DABT_DFSC(esr) == ESR_DABT_DFSC_AL)
 				exception(EXC_BAD_ACCESS, EXC_AARCH64_AL, far);
 			(void) vm_fault(current_map(), trunc_page(far),
-					esr_to_fault_type(esr),
+					fault_prot(esr),
 					FALSE, FALSE,
 					user_page_fault_continue);
 			__builtin_unreachable();
@@ -192,6 +220,8 @@ void trap_sync_exc_el0(void)
 			/* Otherwise, we can look at what it is.  */
 			if (ESR_FP_EXC_IDF(esr))
 				exception(EXC_ARITHMETIC, EXC_AARCH64_IDF, 0);
+			if (ESR_FP_EXC_IXF(esr))
+				exception(EXC_ARITHMETIC, EXC_AARCH64_IXF, 0);
 			if (ESR_FP_EXC_UFF(esr))
 				exception(EXC_ARITHMETIC, EXC_AARCH64_UFF, 0);
 			if (ESR_FP_EXC_OFF(esr))
@@ -210,15 +240,16 @@ void trap_sync_exc_el0(void)
 		*/
 		case ESR_EC_BPT_SAME_EL:
 			panic("Same EL exception in EL0 handler\n");
-		case ESR_EC_SSTEP_LOWER_EL:
+		case ESR_EC_SS_LOWER_EL:
 			/*
 			 *	TODO: need a userspace API to set/unset the MDSCR_EL1.SS bit,
 			 *	perhaps as a part of aarch64_debug_state.
 			 *	Unset it here before taking the exception.
 			 *	https://lore.kernel.org/all/CAFEAcA8QmsHfxAdUQET2Oab_xXa7x4i4C4+_6Y-J8ZNs1t5pPg@mail.gmail.com/
 			 */
-			exception(EXC_BREAKPOINT, EXC_AARCH64_SSTEP, 0);
-		case ESR_EC_SSTEP_SAME_EL:
+			exception(EXC_BREAKPOINT, EXC_AARCH64_SS,
+				  ESR_SS_ISV(esr) ? -1L : !!ESR_SS_EX(esr));
+		case ESR_EC_SS_SAME_EL:
 			panic("Same EL exception in EL0 handler\n");
 		case ESR_EC_BRK:
 			exception(EXC_BREAKPOINT, EXC_AARCH64_BRK, ESR_BRK_IMM(esr));
@@ -301,7 +332,7 @@ void trap_sync_exc_el1(
 			}
 
 			kr = vm_fault(map, trunc_page(far),
-				      esr_to_fault_type(esr),
+				      fault_prot(esr),
 				      FALSE, FALSE, NULL);
 			if (kr == KERN_SUCCESS)
 				return;

@@ -68,6 +68,6 @@
  */
 
 #define EXC_AARCH64_BRK			1	/* BRK instruction, subcode contains immediate */
-#define EXC_AARCH64_SSTEP		2	/* software single step */
+#define EXC_AARCH64_SS			2	/* software single step, subcode contains EX flag, or -1 if unknown */
 
 #endif	/* _MACH_AARCH64_EXCEPTION_H_ */
