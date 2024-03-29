@@ -301,13 +301,26 @@ static boolean_t validate_cpsr(long cpsr, long old_cpsr)
 	return TRUE;
 }
 
+static boolean_t validate_fpcr(long fpcr, long old_fpcr) {
+	/* TODO */
+	return TRUE;
+}
+
+static boolean_t validate_fpsr(long fpsr, long old_fpsr) {
+	/* TODO */
+	return TRUE;
+}
+
+#define old_fpr(thread, reg)		((thread)->pcb->afs ? (thread)->pcb->afs->reg : 0)
+
 kern_return_t thread_setstatus(
 	thread_t	thread,
 	int		flavor,
 	thread_state_t	tstate,
 	unsigned int	count)
 {
-	struct aarch64_thread_state *ats;
+	struct aarch64_thread_state	*ats;
+	struct aarch64_float_state	*afs;
 
 	switch (flavor) {
 		case AARCH64_THREAD_STATE:
@@ -327,6 +340,12 @@ kern_return_t thread_setstatus(
 			if (count < AARCH64_FLOAT_STATE_COUNT)
 				return KERN_INVALID_ARGUMENT;
 			if (((vm_offset_t) tstate) % alignof(struct aarch64_float_state))
+				return KERN_INVALID_ARGUMENT;
+			afs = (struct aarch64_float_state *) tstate;
+
+			if (!validate_fpcr(afs->fpcr, old_fpr(thread, fpcr)))
+				return KERN_INVALID_ARGUMENT;
+			if (!validate_fpsr(afs->fpsr, old_fpr(thread, fpsr)))
 				return KERN_INVALID_ARGUMENT;
 
 			fpu_flush_state_write(thread);
