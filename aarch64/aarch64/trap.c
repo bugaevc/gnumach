@@ -282,9 +282,9 @@ void user_trap_sync(void)
 			 *	trap normally if dereferenced.
 			 *
 			 *	We treat this like a bad pointer dereference
-			 *	(which it will be with FEAT_FPAC), but with a
-			 *	special code indicating its PAC nature.  We get
-			 *	two bits of information (whether A or B and
+			 *	(which it will be without FEAT_FPAC), but with
+			 *	a special code indicating its PAC nature.  We
+			 *	get two bits of information (whether A or B and
 			 *	whether instruction or data key has been used),
 			 *	which we pass on to the user.
 			 */
