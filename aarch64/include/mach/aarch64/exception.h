@@ -34,12 +34,12 @@
  *	EXC_ARITHMETIC
  */
 
-#define EXC_AARCH64_IDF			1	/* input denormal, IDF bit */
-#define EXC_AARCH64_IXF			2	/* inexact, IXF bit */
-#define EXC_AARCH64_UFF			3	/* underflow, UFF bit */
-#define EXC_AARCH64_OFF			4	/* overflow, OFF bit */
-#define EXC_AARCH64_DZF			5	/* divide by zero, DZF bit */
-#define EXC_AARCH64_IOF			6	/* invalid operation, IOF bit */
+#define EXC_AARCH64_IDF			1	/* floating-point input denormal */
+#define EXC_AARCH64_IXF			2	/* floating-point inexact */
+#define EXC_AARCH64_UFF			3	/* floating-point underflow */
+#define EXC_AARCH64_OFF			4	/* floating-point overflow */
+#define EXC_AARCH64_DZF			5	/* floating-point divide by zero */
+#define EXC_AARCH64_IOF			6	/* floating-point invalid operation */
 
 /*
  *	EXC_SOFTWARE
@@ -59,7 +59,7 @@
 #define EXC_AARCH64_AL			100	/* alignment fault */
 #define EXC_AARCH64_AL_PC		101	/* misaligned pc */
 #define EXC_AARCH64_AL_SP		102	/* misaligned sp */
-#define EXC_AARCH64_PAC			103	/* PAC failure */
+#define EXC_AARCH64_PAC			103	/* PAC failure, subcode describes the key */
 #define EXC_AARCH64_MTE			104	/* MTE failure */
 #define EXC_AARCH64_BTI			105	/* BTI failure, subcode contains BTYPE */
 
@@ -69,5 +69,11 @@
 
 #define EXC_AARCH64_BRK			1	/* BRK instruction, subcode contains immediate */
 #define EXC_AARCH64_SS			2	/* software single step, subcode contains EX flag, or -1 if unknown */
+#define EXC_AARCH64_BREAKPT		3	/* hardware breakpoint */
+
+#ifdef notyet
+#define EXC_AARCH64_WATCHPT_READ	4	/* hardware watchpoint (read), subcode contains accessed address */
+#define EXC_AARCH64_WATCHPT_WRITE	5	/* hardware watchpoint (write), subcode contains accessed address */
+#endif
 
 #endif	/* _MACH_AARCH64_EXCEPTION_H_ */

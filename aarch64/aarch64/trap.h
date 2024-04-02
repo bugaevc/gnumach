@@ -24,14 +24,24 @@
 
 unsigned int interrupted_pc(thread_t);
 
-void __attribute__((noreturn)) trap_aarch32(void);
-void __attribute__((noreturn)) trap_sync_exc_el0(void);
-void __attribute__((noreturn)) trap_irq_el0(void);
-void __attribute__((noreturn)) trap_fiq_el0(void);
-void __attribute__((noreturn)) trap_serror_el0(void);
-void trap_sync_exc_el1(unsigned long esr, vm_offset_t far, struct aarch64_kernel_exception_state *akes);
-void trap_irq_el1(void);
-void trap_fiq_el1(void);
-void trap_serror_el1(void);
+void __attribute__((noreturn)) user_trap_aarch32(void);
+void __attribute__((noreturn)) user_trap_sync(void);
+void __attribute__((noreturn)) user_trap_irq(void);
+void __attribute__((noreturn)) user_trap_fiq(void);
+void __attribute__((noreturn)) user_trap_serror(void);
+
+boolean_t kernel_trap_sync(
+	unsigned long				esr,
+	vm_offset_t				far,
+	struct aarch64_kernel_exception_state	*akes);
+
+void kernel_trap_irq(void);
+void kernel_trap_fiq(void);
+void kernel_trap_serror(void);
+
+void __attribute__((noreturn)) kernel_trap_fatal(
+	unsigned long			esr,
+	vm_offset_t			far,
+	struct aarch64_thread_state	*ats);
 
 #endif /* _AARCH64_TRAP_H_ */

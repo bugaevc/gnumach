@@ -421,6 +421,49 @@ ENTRY(_fpu_load_state)
 	ret
 END(_fpu_load_state)
 
+LEXT(kernel_trap_fatal_helper)
+	/*
+	 *	We got here after kernel_trap_sync() returned FALSE.
+	 *	AKES and ESR/FAR are on the stack.  Construct an ATS
+	 *	and branch to kernel_trap_fatal().
+	 */
+	ldp	x0, x1, [sp]			/* x0 <- esr, x1 <- far */
+	ldp	x2, x3, [sp, #(16 + AKES_PC)]	/* x2 <- pc, x3 <- cpsr */
+
+	ldp	x5, x6, [sp, #16]		/* x0, x1 */
+	stp	x5, x6, [sp, #(AKES_SIZE + 16 - ATS_SIZE)]!
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 16)]
+	stp	x5, x6, [sp, #16]		/* x2, x3 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 32)]
+	stp	x5, x6, [sp, #32]		/* x4, x5 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 48)]
+	stp	x5, x6, [sp, #48]		/* x6, x7 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 64)]
+	stp	x5, x6, [sp, #64]		/* x8, x9 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 80)]
+	stp	x5, x6, [sp, #80]		/* x10, x11 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 96)]
+	stp	x5, x6, [sp, #96]		/* x12, x13 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 112)]
+	stp	x5, x6, [sp, #112]		/* x14, x15 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 128)]
+	stp	x5, x6, [sp, #128]		/* x16, x17 */
+	ldp	x5, x6, [sp, #(ATS_SIZE - AKES_SIZE + 144)]
+	stp	x5, x19, [sp, #144]		/* x18; x6 <- x30 */
+	stp	x20, x21, [sp, #160]
+	stp	x22, x23, [sp, #176]
+	stp	x24, x25, [sp, #192]
+	stp	x26, x27, [sp, #208]
+	stp	x28, x29, [sp, #224]
+	add	x4, sp, #ATS_SIZE
+	stp	x6, x4, [sp, #240]
+	stp	x2, xzr, [sp, #256]
+	str	x3, [sp, #272]
+
+	mov	x2, sp
+	b	EXT(kernel_trap_fatal)
+END(kernel_trap_fatal_helper)
+
 /*
  *	Called as a function, makes the current thread
  *	return from the kernel as if from a syscall.
@@ -557,7 +600,11 @@ ENTRY(exception_vector_table)
 	mrs	x0, ESR_EL1
 	mrs	x1, FAR_EL1
 	mov	x2, sp
-	bl	EXT(trap_sync_exc_el1)
+	stp	x0, x1, [sp, #-16]!
+	.cfi_adjust_cfa_offset 16
+	bl	EXT(kernel_trap_sync)
+	cbz	x0, EXT(kernel_trap_fatal_helper)
+	add	sp, sp, #16
 	b	EXT(return_to_kernel)
 	.cfi_endproc
 .balign 0x80
@@ -565,7 +612,10 @@ ENTRY(exception_vector_table)
 	.cfi_startproc simple
 	.cfi_signal_frame
 	SAVE_EL1_STATE()
-	bl	EXT(trap_irq_el1)
+#ifdef MACH_KDB
+	msr	DAIFClr, #8
+#endif
+	bl	EXT(kernel_trap_irq)
 	b	EXT(return_to_kernel)
 	.cfi_endproc
 .balign 0x80
@@ -573,7 +623,10 @@ ENTRY(exception_vector_table)
 	.cfi_startproc simple
 	.cfi_signal_frame
 	SAVE_EL1_STATE()
-	bl	EXT(trap_fiq_el1)
+#ifdef MACH_KDB
+	msr	DAIFClr, #8
+#endif
+	bl	EXT(kernel_trap_fiq)
 	b	EXT(return_to_kernel)
 	.cfi_endproc
 .balign 0x80
@@ -581,7 +634,10 @@ ENTRY(exception_vector_table)
 	.cfi_startproc simple
 	.cfi_signal_frame
 	SAVE_EL1_STATE()
-	bl	EXT(trap_serror_el1)
+#ifdef MACH_KDB
+	msr	DAIFClr, #8
+#endif
+	bl	EXT(kernel_trap_serror)
 	b	EXT(return_to_kernel)
 	.cfi_endproc
 .balign 0x80
@@ -592,7 +648,7 @@ ENTRY(exception_vector_table)
 	SWITCH_TO_KERNEL_STACK(x0)
 	CFI_PCB_EL0_STATE()
 	msr	DAIFClr, #15			/* safe to unmask interrupts now */
-	bl	EXT(trap_sync_exc_el0)
+	bl	EXT(user_trap_sync)
 	nop					/* mysterious nop */
 	.cfi_endproc
 .balign 0x80
@@ -602,7 +658,10 @@ ENTRY(exception_vector_table)
 	SAVE_EL0_STATE()
 	SWITCH_TO_KERNEL_STACK(x0)
 	CFI_PCB_EL0_STATE()
-	bl	EXT(trap_irq_el0)
+#ifdef MACH_KDB
+	msr	DAIFClr, #8
+#endif
+	bl	EXT(user_trap_irq)
 	nop					/* mysterious nop */
 	.cfi_endproc
 .balign 0x80
@@ -612,7 +671,10 @@ ENTRY(exception_vector_table)
 	SAVE_EL0_STATE()
 	SWITCH_TO_KERNEL_STACK(x0)
 	CFI_PCB_EL0_STATE()
-	bl	EXT(trap_fiq_el0)
+#ifdef MACH_KDB
+	msr	DAIFClr, #8
+#endif
+	bl	EXT(user_trap_fiq)
 	nop					/* mysterious nop */
 	.cfi_endproc
 .balign 0x80
@@ -622,25 +684,28 @@ ENTRY(exception_vector_table)
 	SAVE_EL0_STATE()
 	SWITCH_TO_KERNEL_STACK(x0)
 	CFI_PCB_EL0_STATE()
-	bl	EXT(trap_serror_el0)
+#ifdef MACH_KDB
+	msr	DAIFClr, #8
+#endif
+	bl	EXT(user_trap_serror)
 	nop					/* mysterious nop */
 	.cfi_endproc
 .balign 0x80
 .sync_exc_el0_aarch32:
 	SWITCH_TO_KERNEL_STACK(x0)
-	b	EXT(trap_aarch32)
+	b	EXT(user_trap_aarch32)
 .balign 0x80
 .irq_el0_aarch32:
 	SWITCH_TO_KERNEL_STACK(x0)
-	b	EXT(trap_aarch32)
+	b	EXT(user_trap_aarch32)
 .balign 0x80
 .fiq_el0_aarch32:
 	SWITCH_TO_KERNEL_STACK(x0)
-	b	EXT(trap_aarch32)
+	b	EXT(user_trap_aarch32)
 .balign 0x80
 .serror_el0_aarch32:
 	SWITCH_TO_KERNEL_STACK(x0)
-	b	EXT(trap_aarch32)
+	b	EXT(user_trap_aarch32)
 END(exception_vector_table)
 
 ENTRY(load_exception_vector_table)

@@ -17,7 +17,7 @@ typedef int		spl_t;
 static inline void spl0(void)
 {
 	__atomic_signal_fence(__ATOMIC_RELEASE);
-	asm volatile("msr DAIFClr, #15");
+	asm volatile("msr DAIFClr, #7");
 }
 
 /* Disable interrupts, returning previous SPL.  */
@@ -26,7 +26,7 @@ static inline spl_t spl7(void)
 	long	daif;
 
 	asm volatile("mrs %0, DAIF" : "=r"(daif));
-	asm volatile("msr DAIFSet, #15");
+	asm volatile("msr DAIFSet, #7");
 	__atomic_signal_fence(__ATOMIC_ACQUIRE);
 
 	return (daif & DAIF_MASK) ? SPL7 : SPL0;

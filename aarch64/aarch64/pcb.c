@@ -243,6 +243,8 @@ static boolean_t validate_cpsr(long cpsr, long old_cpsr)
 	/*
 	 *	Let userland mask debug exceptions if they
 	 *	so want, but not IRQs, FIQs, or SErrors.
+	 *
+	 *	TODO: ARM ARM seems to say D is ignored at EL0.
 	 */
 	if (cpsr & SPSR_AIF)
 		return FALSE;
