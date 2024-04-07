@@ -72,18 +72,18 @@ ENTRY(_start)
 	eret
 
 1:
-#ifdef notyet
+
+#define HCR_VALUE	(HCR_E2H | HCR_RW | HCR_TWI | HCR_TWE | HCR_TGE)
+
 	/* EL2, see if FEAT_VHE is supported.  */
 	mrs	x2, ID_AA64MMFR1_EL1
 	tbz	x2, #(ID_AA64MMFR1_VH_SHIFT), 0b
 	/* Enable E2H.  */
-	mov	x5, #((HCR_E2H | HCR_RW) & 0xffffffff)
-	movk	x5, #((HCR_E2H | HCR_RW) >> 32), lsl #32
+	mov	x5, #(HCR_VALUE & 0xffff)
+	movk	x5, #((HCR_VALUE >> 16) & 0xffff), lsl #16
+	movk	x5, #(HCR_VALUE >> 32), lsl #32
 	msr	HCR_EL2, x5
 	isb
-#else
-	b	0b
-#endif
 
 2:
 	adr	x1, .boot_stack_end
