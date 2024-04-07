@@ -20,6 +20,7 @@
 #include "aarch64/locore.h"
 #include "aarch64/hwcaps.h"
 #include "aarch64/fpu.h"
+#include "aarch64/bits/spsr.h"
 #include "arm/gic-v2.h"
 #include "arm/pl011.h"
 #include "arm/psci.h"
@@ -276,6 +277,17 @@ static void early_dtb_walk(void)
 	}
 }
 
+static void print_el(void)
+{
+	long		current_el;
+	unsigned short	el;
+
+	asm("mrs %0, CurrentEL" : "=r"(current_el));
+	el = SPSR_EL(current_el);
+
+	printf("Booting in EL%d\n", el);
+}
+
 void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 {
 	kern_return_t		kr;
@@ -315,6 +327,7 @@ void __attribute__((noreturn)) c_boot_entry(dtb_t dtb)
 		kernel_cmdline = (const char *) phystokv(kernel_cmdline);
 	printf("Kernel command line: %s\n", kernel_cmdline);
 
+	print_el();
 
 	machine_slot[0].is_cpu = TRUE;
 	machine_slot[0].cpu_type = CPU_TYPE_ARM64;

@@ -33,6 +33,7 @@ libkernel_a_SOURCES += \
 	aarch64/aarch64/bits/id_aa64.h \
 	aarch64/aarch64/bits/mair.h \
 	aarch64/aarch64/bits/pte.h \
+	aarch64/aarch64/bits/hcr.h \
 	aarch64/aarch64/bits/sctlr.h \
 	aarch64/aarch64/bits/spsr.h \
 	aarch64/aarch64/bits/tcr.h \

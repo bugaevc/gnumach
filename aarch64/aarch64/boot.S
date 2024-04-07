@@ -17,6 +17,9 @@
  */
 
 #include <mach/machine/asm.h>
+#include "aarch64/bits/spsr.h"
+#include "aarch64/bits/hcr.h"
+#include "aarch64/bits/id_aa64.h"
 
 	.section .text.boot
 .boot_header:
@@ -33,22 +36,56 @@
 	.dword	0
 
 ENTRY(_start)
+	/*
+	 *	See what EL we're entered in.
+	 *
+	 *	If it's EL1, there's nothing special to do, and we can proceed.
+	 *
+	 *	If it's EL2, see if FEAT_VHE is supported, and if so, enable
+	 *	E2H, and proceed booting in EL2.  If it's unsupported, drop
+	 *	to AArch64 EL1 and boot there.
+	 *
+	 *	If it's EL3, drop down to EL2 and do the same things.
+	 */
 	mrs	x4, CurrentEL
-	cmp	x4, #(1 << 2)
-	b.eq	.in_el1
-	adr	x5, .in_el1
-	mov	x6, #((0x7 << 6) | (5 << 0))
-	cmp	x4, #(2 << 2)
-	b.eq	.in_el2
-.in_el3:
+	cmp	x4, #(SPSR_MAKE_EL(1))
+	b.eq	2f
+
+	cmp	x4, #(SPSR_MAKE_EL(2))
+	b.eq	1f
+
+	/* Must be in EL3, drop down to EL2.  */
+	adr	x5, 1f
 	msr	ELR_EL3, x5
+	mov	x6, #(SPSR_DAIF | SPSR_MAKE_EL(2) | SPSR_SPSEL_N)
 	msr	SPSR_EL3, x6
 	eret
-.in_el2:
+
+0:
+	/* EL2 without VHE, drop down to EL1.  */
+	mov	x7, #(HCR_RW)
+	msr	HCR_EL2, x7
+	adr	x5, 2f
 	msr	ELR_EL2, x5
+	mov	x6, #(SPSR_DAIF | SPSR_MAKE_EL(1) | SPSR_SPSEL_N)
 	msr	SPSR_EL2, x6
 	eret
-.in_el1:
+
+1:
+#ifdef notyet
+	/* EL2, see if FEAT_VHE is supported.  */
+	mrs	x2, ID_AA64MMFR1_EL1
+	tbz	x2, #(ID_AA64MMFR1_VH_SHIFT), 0b
+	/* Enable E2H.  */
+	mov	x5, #((HCR_E2H | HCR_RW) & 0xffffffff)
+	movk	x5, #((HCR_E2H | HCR_RW) >> 32), lsl #32
+	msr	HCR_EL2, x5
+	isb
+#else
+	b	0b
+#endif
+
+2:
 	adr	x1, .boot_stack_end
 	mov	sp, x1
 

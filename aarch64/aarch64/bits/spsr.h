@@ -3,9 +3,10 @@
 
 #define SPSR_SPSEL(spsr)	((spsr) & 0x1)	/* select sp: */
 #define SPSR_SPSEL_0		0x00000000	/* ...sp = SP_EL0 */
-#define SPSR_SPSEL_N		00000000x1	/* ...sp = SP_ELn */
+#define SPSR_SPSEL_N		0x00000001	/* ...sp = SP_ELn */
 
 #define SPSR_EL(spsr)		(((spsr) & 0xc) >> 2)	/* exception level, 0 to 3 */
+#define SPSR_MAKE_EL(el)	((el) << 2)
 
 #define SPSR_NRW(spsr)		((spsr) & 0x10)	/* "not register width": */
 #define SPSR_NRW_64		0x00000000	/* ...AArch64 */

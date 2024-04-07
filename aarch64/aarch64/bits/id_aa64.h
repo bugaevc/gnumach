@@ -117,11 +117,17 @@
 #define ID_AA64ISAR1_I8MM_NONE		0x0			/* Int8 matrix multiplication not supported */
 #define ID_AA64ISAR1_I8MM_I8MM		0x1			/* Int8 matrix multiplication supported */
 
+/* FIXME: is this ASID, not VMID? */
 #define ID_AA64MMFR1_ASID(v)		(((v) >> 4) & 0xf)
+#define ID_AA64MMFR1_VH(v)		((v)) >> 8) & 0xf)
 #define ID_AA64MMFR1_PAN(v)		(((v) >> 20) & 0xf)
+
+#define ID_AA64MMFR1_VH_SHIFT		8
 
 #define ID_AA64MMFR1_ASID_8		0x0			/* 8-bit ASID */
 #define ID_AA64MMFR1_ASID_16		0x2			/* 16-bit ASID */
+#define ID_AA64MMFR1_VH_NONE		0x0			/* VHE not supported */
+#define ID_AA64MMFR1_VH_VHE		0x1			/* VHE supported */
 #define ID_AA64MMFR1_PAN_NONE		0x0			/* PAN not supported */
 #define ID_AA64MMFR1_PAN_PAN		0x1			/* PAN supported */
 #define ID_AA64MMFR1_PAN_PAN2		0x2			/* PAN + PAN2 supported */
