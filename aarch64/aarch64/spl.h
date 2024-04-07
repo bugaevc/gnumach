@@ -11,8 +11,6 @@ typedef int		spl_t;
 #define SPL0		0
 #define SPL7		7
 
-#define DAIF_MASK	0x3c0
-
 /* Enable interrupts.  */
 static inline void spl0(void)
 {
@@ -29,7 +27,12 @@ static inline spl_t spl7(void)
 	asm volatile("msr DAIFSet, #7");
 	__atomic_signal_fence(__ATOMIC_ACQUIRE);
 
-	return (daif & DAIF_MASK) ? SPL7 : SPL0;
+	/*
+	 *	0x3c0 is SPSR_DAIF, but we'd rather avoid
+	 *	including "aarch64/bits/spsr.h" into this
+	 *	widely-used header.
+	 */
+	return (daif & 0x3c0) ? SPL7 : SPL0;
 }
 
 static inline void splx(spl_t spl)

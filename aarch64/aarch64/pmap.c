@@ -1,6 +1,10 @@
 #include "aarch64/pmap.h"
 #include "aarch64/vm_param.h"
 #include "aarch64/hwcaps.h"
+#include "aarch64/bits/pte.h"
+#include "aarch64/bits/mair.h"
+#include "aarch64/bits/tcr.h"
+#include "aarch64/bits/sctlr.h"
 #include <vm/pmap.h>
 #include <vm/vm_page.h>
 #include <vm/vm_kern.h>
@@ -16,73 +20,6 @@ struct pmap {
 	decl_simple_lock_data(,lock)	/* lock on map */
 	struct pmap_statistics stats;	/* map statistics */
 };
-
-/* PTE bits */
-#define AARCH64_PTE_ADDR_MASK	0x0000fffffffff000UL
-#define AARCH64_PTE_PROT_MASK	0x00600000000000c0UL
-
-/* Block or table */
-#define AARCH64_PTE_BLOCK	0x0000000000000000UL	/* points to a block of phys memory */
-#define AARCH64_PTE_TABLE	0x0000000000000002UL	/* points to a next level table */
-#define AARCH64_PTE_LEVEL3	0x0000000000000002UL	/* this is a level 3 PTE (same value as table) */
-
-#define AARCH64_PTE_VALID	0x0000000000000001UL	/* this entry is valid */
-#define AARCH64_PTE_NS		0x0000000000000020UL	/* security bit (only EL3 & secure EL1) */
-#define AARCH64_PTE_ACCESS	0x0000000000000400UL	/* if unset, trap on access */
-#define AARCH64_PTE_NG		0x0000000000000800UL	/* tag TLB entries with ASID */
-#define AARCH64_PTE_BTI		0x0004000000000000UL	/* enable branch target identification */
-#define AARCH64_PTE_CONTIG	0x0010000000000000UL	/* hint that this is a part of contigous set */
-#define AARCH64_PTE_PXN		0x0020000000000000UL	/* privileged execute never */
-#define AARCH64_PTE_UXN		0x0040000000000000UL	/* unprivileged execute never */
-
-#define AARCH64_PTE_MAIR_INDEX(i) ((i) << 2)		/* cache policies, as an index into MAIR table */
-
-/* Access permissions */
-#define AARCH64_PTE_EL0_ACCESS	0x0000000000000040UL	/* EL0 can access (read or write, subject to READ_ONLY) */
-#define AARCH64_PTE_READ_ONLY	0x0000000000000080UL	/* can not be written */
-
-/* Shareability */
-#define AARCH64_PTE_NON_SH	0x0000000000000000UL	/* non-shareable */
-#define AARCH64_PTE_OUTER_SH	0x0000000000000200UL	/* outer shareable */
-#define AARCH64_PTE_INNER_SH	0x0000000000000300UL	/* inner shareable */
-
-#define MAIR_NORMAL_INDEX	0
-#define MAIR_NORMAL_FLAGS	0xff
-#define MAIR_DEVICE_INDEX	1
-#define MAIR_DEVICE_FLAGS	0x00
-
-#define MAIR_VALUE_ENTRY(index, flags)		((flags) << ((index) * 8))
-#define MAIR_VALUE		(MAIR_VALUE_ENTRY(MAIR_NORMAL_INDEX, MAIR_NORMAL_FLAGS) | MAIR_VALUE_ENTRY(MAIR_DEVICE_INDEX, MAIR_DEVICE_FLAGS))
-
-#define TCR_A1			0x0000000000400000UL	/* if set, TTBR1 defines ASID, otherwise TTBR0 */
-
-#define TCR_T0SZ(size)		(64 - size)
-#define TCR_TG0_4K		0x0000000000000000UL
-#define TCR_TG0_64K		0x0000000000004000UL
-#define TCR_TG0_16K		0x0000000000008000UL
-
-#define TCR_T1SZ(size)		((64 - size) << 16)
-#define TCR_TG1_16K		0x0000000040000000UL
-#define TCR_TG1_4K		0x0000000080000000UL
-#define TCR_TG1_64K		0x00000000c0000000UL
-
-#define TCR_VALUE		(TCR_T0SZ(VM_AARCH64_T0SZ) | TCR_TG0_4K | TCR_T1SZ(VM_AARCH64_T1SZ) | TCR_TG1_4K)
-
-#define SCTLR_M			0x0000000000000001UL	/* enable MMU */
-#define SCTLR_A			0x0000000000000002UL	/* enable alignment checking */
-#define SCTLR_SA		0x0000000000000008UL	/* enable SP alignment checking in EL1 */
-#define SCTLR_SA0		0x0000000000000010UL	/* enable SP alignment checking in EL0 */
-#define SCTLR_ENDB		0x0000000000002000UL	/* PAC */
-#define SCTLR_UCT		0x0000000000008000UL	/* allow EL0 to access CTR_EL0 */
-#define SCTLR_SPAN		0x0000000000800000UL	/* don't set psate.PAN upon an exception to EL1 */
-#define SCTLR_UCI		0x0000000004000000UL	/* allow EL0 to issue cache maintenance instructions */
-#define SCTLR_ENDA		0x0000000008000000UL	/* PAC */
-#define SCTLR_ENIB		0x0000000040000000UL	/* PAC */
-#define SCTLR_ENIA		0x0000000080000000UL	/* PAC */
-#define SCTLR_BT0		0x0000000800000000UL	/* PACIASP/PACIBSP does not act like BTI JC in EL0 */
-#define SCTLR_BT1		0x0000001000000000UL	/* PACIASP/PACIBSP does not act like BTI JC in EL1 */
-#define SCTLR_SSBS		0x0000100000000000UL	/* set SSBS to 1 on exception to EL1 (otherwise, to 0) */
-#define SCTLR_EPAN		0x0200000000000000UL	/* enable EPAN */
 
 #define TTBR_ASID(x)		(((x) >> 48) & 0xff)
 #define TTBR_MAKE_ASID(asid)	(((vm_offset_t) asid) << 48)
