@@ -55,8 +55,8 @@ U-Boot, but note this hasn't been tested at all yet:
 fdt set /chosen \#address-cells <2>
 fdt set /chosen \#size-cells <2>
 fdt mknod /chosen module@0x4000
-fdt set /chosen/module@0x4000 compatible "multiboot,kernel", "multiboot,module"
-fdt set /chosen/module@0x4000 reg <... ...>
+fdt set /chosen/module@0x4000 compatible "multiboot,kernel" "multiboot,module"
+fdt set /chosen/module@0x4000 reg <0x0 ... 0x0 ...>
 fdt set /chosen/module@0x4000 bootargs "..."
 
 booti ${gnumach_addr} - ${fdt_addr}
