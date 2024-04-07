@@ -28,7 +28,7 @@
  */
 
 #define EXC_AARCH64_UNK			1	/* unknown reason (unallocated instruction) */
-#define EXC_AARCH64_SVC			2	/* SVC that's not a valid syscall, subcode contains immediate */
+#define EXC_AARCH64_IL			2	/* illegal execution state (PSTATE.IL set) */
 
 /*
  *	EXC_ARITHMETIC
@@ -45,7 +45,12 @@
  *	EXC_SOFTWARE
  */
 
-#define EXC_AARCH64_IL			1	/* illegal execution state (PSTATE.IL set) */
+#define EXC_AARCH64_SVC			1	/* SVC that's not a valid syscall, subcode contains immediate */
+
+#ifdef notyet
+#define EXC_AARCH64_HVC			2	/* HVC, subcode contains immediate */
+#define EXC_AARCH64_SMC			3	/* SMC, subcode contains immediate */
+#endif
 
 /*
  *	EXC_BAD_ACCESS
@@ -60,8 +65,11 @@
 #define EXC_AARCH64_AL_PC		101	/* misaligned pc */
 #define EXC_AARCH64_AL_SP		102	/* misaligned sp */
 #define EXC_AARCH64_PAC			103	/* PAC failure, subcode describes the key */
-#define EXC_AARCH64_MTE			104	/* MTE failure */
-#define EXC_AARCH64_BTI			105	/* BTI failure, subcode contains BTYPE */
+#define EXC_AARCH64_BTI			104	/* BTI failure, subcode contains BTYPE */
+
+#ifdef notyet
+#define EXC_AARCH64_MTE			105	/* MTE failure */
+#endif
 
 /*
  *	EXC_BREAKPOINT

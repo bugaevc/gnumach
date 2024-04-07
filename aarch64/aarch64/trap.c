@@ -13,10 +13,13 @@
 #define ESR_EC(esr)		(((esr) >> 26) & 0x3f)
 /* Exception classes.  */
 #define ESR_EC_UNK		0x00		/* unknown reason */
+#define ESR_EC_WF		0x01		/* WFI/WFE */
 #define ESR_EC_FP_ACCESS	0x07		/* FP/AdvSIMD access when disabled */
 #define ESR_EC_BTI		0x0d		/* BTI failure */
 #define ESR_EC_IL		0x0e		/* illegal execution state */
-#define ESR_EC_SVC		0x15		/* SCV (syscall) */
+#define ESR_EC_SVC		0x15		/* SVC (syscall) */
+#define ESR_EC_HVC		0x16		/* HVC */
+#define ESR_EC_SMC		0x17		/* SMC */
 #define ESR_EC_MRS		0x18		/* MRS or MRS (or cache?) */
 #define ESR_EC_PAC		0x1c		/* PAC failure */
 #define ESR_EC_IABT_LOWER_EL	0x20		/* instruction abort from lower EL */
@@ -35,7 +38,16 @@
 #define ESR_EC_WATCHPT_SAME_EL	0x35		/* hardware watchpoint from the same EL */
 #define ESR_EC_BRK		0x3c		/* BRK */
 
+#define ESR_WF_TI(esr)		((esr) & 0x3)	/* WF* trapped instruction */
+
+#define ESR_WF_TI_WFI		0x0
+#define ESR_WF_TI_WFE		0x1
+#define ESR_WF_TI_WFIT		0x2
+#define ESR_WF_TI_WFET		0x3
+
 #define ESR_SVC_IMM(esr)	((esr) & 0xffff)
+#define ESR_HVC_IMM(esr)	((esr) & 0xffff)
+#define ESR_SMC_IMM(esr)	((esr) & 0xffff)
 #define ESR_PAC_INFO(esr)	((esr) & 0x3)
 
 #define ESR_IABT_IFSC(esr)	((esr) & 0x3f)	/* instruction fault status code */
@@ -200,6 +212,48 @@ void user_trap_sync(void)
 			 */
 			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_UNK, 0);
 
+		case ESR_EC_WF:
+			/*
+			 *	WFE, WFI, WFET, and WFIT instructions.  When
+			 *	executed at EL1, these put the CPU into a low-
+			 *	power state until an exception happens.
+			 *
+			 *	Emulate the same semantics for the user by
+			 *	blocking the thread until something aborts it.
+			 *	This is primarily meant for VMs, since they
+			 *	can't block by performing explicit syscalls,
+			 *	and do expect WF* to put the virtual CPU into
+			 *	a low-power state.  We also allow it for normal
+			 *	tasks.
+			 *
+			 *	Unlike for SVC & friends, we must advance PC
+			 *	explicitly.  Do this first, before we go to
+			 *	sleep, so it looks like we're blocking on the
+			 *	next instruction, same as for SVC.
+			 *
+			 *	We don't currently support WFxT properly (it's
+			 *	unclear which timer it should work on), so for
+			 *	them just make a single attempt to switch to
+			 *	another thread, and return without waiting
+			 *	otherwise.
+			 */
+			pcb->ats.pc += 4;
+
+			switch (ESR_WF_TI(esr)) {
+				case ESR_WF_TI_WFI:
+				case ESR_WF_TI_WFE:
+					thread_will_wait(current_thread());
+					thread_block(thread_exception_return);
+					__builtin_unreachable();
+
+				case ESR_WF_TI_WFIT:
+				case ESR_WF_TI_WFET:
+				default:
+					// TODO: thread_will_wait_with_timeout
+					thread_block(thread_exception_return);
+					__builtin_unreachable();
+			}
+
 		case ESR_EC_FP_ACCESS:
 			/*
 			 *	Userland accessed floating point registers
@@ -238,13 +292,12 @@ void user_trap_sync(void)
 			 *	attempt to return from an exception with a bad
 			 *	execution state indicated in SPSR_EL1.
 			 *
-			 *	The only way to get one of these from EL0 is
+			 *	The only way to get one of these *from EL0* is
 			 *	to ask for it explicitly by setting the IL flag
 			 *	in PSTATE (CPSR) with a thread_set_state() call
-			 *	(see "Legal returns that set PSTATE.IL to 1" in
-			 *	ARM ARM).  So we classify this as EXC_SOFTWARE.
+			 *	(see "Legal returns that set PSTATE.IL to 1").
 			 */
-			exception(EXC_SOFTWARE, EXC_AARCH64_IL, 0);
+			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_IL, 0);
 
 		case ESR_EC_SVC:
 			/*
@@ -267,7 +320,35 @@ void user_trap_sync(void)
 			imm16 = ESR_SVC_IMM(esr);
 			if (likely(imm16 == 0) && handle_syscall(&pcb->ats))
 				thread_exception_return();
-			exception(EXC_BAD_INSTRUCTION, EXC_AARCH64_SVC, imm16);
+			exception(EXC_SOFTWARE, EXC_AARCH64_SVC, imm16);
+
+		case ESR_EC_HVC:
+			/*
+			 *	The "HVC" (hypervisor call) instruction, very
+			 *	similar to SVC.
+			 *
+			 *	We always report these as exceptions; a
+			 *	hypervisor running as a user task should know
+			 *	what to do with them.
+			 */
+#ifdef notyet
+			imm16 = ESR_HVC_IMM(esr);
+			exception(EXC_SOFTWARE, EXC_AARCH64_HVC, imm16);
+#else
+			panic("Virtualization not supported yet\n");
+#endif
+
+		case ESR_EC_SMC:
+			/*
+			 *	The "SMC" (secure monitor call) instruction,
+			 *	very similar to SVC/SMC.
+			 */
+#ifdef notyet
+			imm16 = ESR_SMC_IMM(esr);
+			exception(EXC_SOFTWARE, EXC_AARCH64_SMC, imm16);
+#else
+			panic("Virtualization not supported yet\n");
+#endif
 
 		case ESR_EC_MRS:
 			/* We may add a special code for this (EXC_AARCH64_MRS?) */
@@ -340,7 +421,11 @@ void user_trap_sync(void)
 				exception(EXC_BAD_ACCESS, KERN_INVALID_ADDRESS, far);
 
 			if (ESR_DABT_DFSC(esr) == ESR_DABT_DFSC_MTE)
+#ifdef notyet
 				exception(EXC_BAD_ACCESS, EXC_AARCH64_MTE, far);
+#else
+				panic("MTE is not supported yet\n");
+#endif
 
 			if (ESR_DABT_DFSC(esr) == ESR_DABT_DFSC_AL)
 				exception(EXC_BAD_ACCESS, EXC_AARCH64_AL, far);
