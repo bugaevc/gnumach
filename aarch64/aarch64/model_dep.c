@@ -77,11 +77,11 @@ void halt_cpu(void)
 #else
 	/* Try PSCI.  */
 	psci_cpu_off();
-	/* Disable interrupts and WFE forever.  */
+	/* Disable interrupts and WFI forever.  */
 	asm volatile(
 		"msr	DAIFSet, #15\n"
 		"0:\n\t"
-		"wfe\n\t"
+		"wfi\n\t"
 		"b	0b"
 	);
 	__builtin_unreachable();
