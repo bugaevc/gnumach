@@ -134,10 +134,14 @@
 #define ID_AA64MMFR1_PAN_PAN3		0x3			/* PAN + PAN2 + PAN3 supported */
 
 #define ID_AA64MMFR2_UAO(v)		(((v) >> 4) & 0xf)
+#define ID_AA64MMFR2_NV(v)		(((v) >> 24) & 0xf)
 #define ID_AA64MMFR2_AT(v)		(((v) >> 32) & 0xf)
 
 #define ID_AA64MMFR2_UAO_NONE		0x0			/* UAO not supported */
 #define ID_AA64MMFR2_UAO_UAO		0x1			/* UAO supported */
+#define ID_AA64MMFR2_NV_NONE		0x0			/* NV not supported */
+#define ID_AA64MMFR2_NV_NV		0x1			/* NV supported */
+#define ID_AA64MMFR2_NV_NV2		0x2			/* NV + NV2 supported */
 #define ID_AA64MMFR2_AT_NONE		0x0			/* AT not supported */
 #define ID_AA64MMFR2_AT_AT		0x1			/* AT supported */
 

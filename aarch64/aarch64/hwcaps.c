@@ -141,4 +141,6 @@ void hwcaps_init(void)
 		hwcap_internal |= HWCAP_INT_ASID16;
 	if (ID_AA64MMFR2_UAO(id_aa64mmfr2) != ID_AA64MMFR2_UAO_NONE)
 		hwcap_internal |= HWCAP_INT_UAO;
+	if (ID_AA64MMFR2_NV(id_aa64mmfr2) >= ID_AA64MMFR2_NV_NV2)
+		hwcap_internal |= HWCAP_INT_NV2;
 }
