@@ -162,11 +162,11 @@ void user_trap_sync(void)
 
 			switch (ESR_WF_TI(esr)) {
 				case ESR_WF_TI_WFI:
-				case ESR_WF_TI_WFE:
 					thread_will_wait(current_thread());
 					thread_block(thread_exception_return);
 					__builtin_unreachable();
 
+				case ESR_WF_TI_WFE:
 				case ESR_WF_TI_WFIT:
 				case ESR_WF_TI_WFET:
 				default:
