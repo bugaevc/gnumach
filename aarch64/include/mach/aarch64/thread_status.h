@@ -35,6 +35,7 @@ struct aarch64_float_state {
 	__int128 v[32];
 	uint64_t fpsr;
 	uint64_t fpcr;
+	uint64_t fpmr;
 };
 #define AARCH64_FLOAT_STATE_COUNT	(sizeof(struct aarch64_float_state) / sizeof(unsigned int))
 

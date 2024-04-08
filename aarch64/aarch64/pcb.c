@@ -276,6 +276,11 @@ static boolean_t validate_fpsr(long fpsr, long old_fpsr) {
 	return TRUE;
 }
 
+static boolean_t validate_fpmr(long fpmr, long old_fpmr) {
+	/* TODO: support FPMR */
+	return fpmr == 0 || fpmr == old_fpmr;
+}
+
 #define old_fpr(thread, reg)		((thread)->pcb->afs ? (thread)->pcb->afs->reg : 0)
 
 kern_return_t thread_setstatus(
@@ -311,6 +316,8 @@ kern_return_t thread_setstatus(
 			if (!validate_fpcr(afs->fpcr, old_fpr(thread, fpcr)))
 				return KERN_INVALID_ARGUMENT;
 			if (!validate_fpsr(afs->fpsr, old_fpr(thread, fpsr)))
+				return KERN_INVALID_ARGUMENT;
+			if (!validate_fpmr(afs->fpmr, old_fpr(thread, fpmr)))
 				return KERN_INVALID_ARGUMENT;
 
 			fpu_flush_state_write(thread);

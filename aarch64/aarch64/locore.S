@@ -390,7 +390,8 @@ ENTRY(_fpu_save_state)
 	stp	q30, q31, [x0], #32
 	mrs	x1, fpcr
 	mrs	x2, fpsr
-	stp	x1, x2, [x0]
+	stp	x1, x2, [x0], #32
+	str	xzr, [x0]		/* FPMR ignored for now */
 	ret
 END(_fpu_save_state)
 
@@ -418,6 +419,7 @@ ENTRY(_fpu_load_state)
 	ldp	x1, x2, [x0]
 	msr	fpcr, x1
 	msr	fpsr, x2
+	/* FPMR ignored for now */
 	ret
 END(_fpu_load_state)
 
