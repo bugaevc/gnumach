@@ -1,25 +1,23 @@
-/* 
- * Copyright (c) 1995-1994 The University of Utah and
- * the Computer Systems Laboratory at the University of Utah (CSL).
- * All rights reserved.
+/*
+ * Copyright (c) 2023-2024 Free Software Foundation.
  *
- * Permission to use, copy, modify and distribute this software is hereby
- * granted provided that (1) source code retains these copyright, permission,
- * and disclaimer notices, and (2) redistributions including binaries
- * reproduce the notices in supporting documentation, and (3) all advertising
- * materials mentioning features or use of this software display the following
- * acknowledgement: ``This product includes software developed by the
- * Computer Systems Laboratory at the University of Utah.''
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * THE UNIVERSITY OF UTAH AND CSL ALLOW FREE USE OF THIS SOFTWARE IN ITS "AS
- * IS" CONDITION.  THE UNIVERSITY OF UTAH AND CSL DISCLAIM ANY LIABILITY OF
- * ANY KIND FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * CSL requests users of this software to return to csl-dist@cs.utah.edu any
- * improvements that they make and grant CSL redistribution rights.
- *
- *      Author: Bryan Ford, University of Utah CSL
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+
+/* TODO: This should not be a public header.  */
+
 #ifndef _MACH_AARCH64_EXEC_ELF_H_
 #define _MACH_AARCH64_EXEC_ELF_H_
 

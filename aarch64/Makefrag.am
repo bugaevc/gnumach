@@ -101,7 +101,6 @@ include_mach_aarch64_HEADERS = \
 	aarch64/include/mach/aarch64/asm.h \
 	aarch64/include/mach/aarch64/boolean.h \
 	aarch64/include/mach/aarch64/exception.h \
-	aarch64/include/mach/aarch64/fp_reg.h \
 	aarch64/include/mach/aarch64/kern_return.h \
 	aarch64/include/mach/aarch64/mach_aarch64.defs \
 	aarch64/include/mach/aarch64/mach_aarch64_types.h \
