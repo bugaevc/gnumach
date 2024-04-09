@@ -391,7 +391,7 @@ ENTRY(_fpu_save_state)
 	mrs	x1, fpcr
 	mrs	x2, fpsr
 	stp	x1, x2, [x0], #32
-	str	xzr, [x0]		/* FPMR ignored for now */
+	stp	xzr, xzr, [x0]		/* FPMR ignored for now */
 	ret
 END(_fpu_save_state)
 

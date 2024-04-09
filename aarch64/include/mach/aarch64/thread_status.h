@@ -36,6 +36,7 @@ struct aarch64_float_state {
 	uint64_t fpsr;
 	uint64_t fpcr;
 	uint64_t fpmr;
+	uint64_t fp_reserved;		/* for when ARM adds another FP register */
 };
 #define AARCH64_FLOAT_STATE_COUNT	(sizeof(struct aarch64_float_state) / sizeof(unsigned int))
 
