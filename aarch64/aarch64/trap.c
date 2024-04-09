@@ -54,6 +54,8 @@ static void user_page_fault_continue(kern_return_t kr)
 {
 	pcb_t		pcb;
 
+	printf("upfc, kr = %d\n", kr);
+
 	if (likely(kr == KERN_SUCCESS))
 		thread_exception_return();
 
@@ -70,6 +72,8 @@ void user_trap_irq(void)
 {
 	spl7_irq();
 	percpu_assign(in_irq_from_el0, TRUE);
+
+	printf("IRQ from user\n");
 
 	assert(root_irq_src);
 	root_irq_src->handle_irq(root_irq_src);
@@ -111,7 +115,7 @@ void user_trap_sync(void)
 	vm_offset_t	far = pcb->far;
 	int		imm16;
 
-#if 0
+#if 1
 	printf("Sync exc from EL0!\n");
 	printf("ESR: %#lx, FAR: %#lx\n", esr, far);
 #endif
@@ -467,6 +471,8 @@ void kernel_trap_irq(void)
 {
 	spl7_irq();
 
+	printf("IRQ in kernel!\n");
+
 	assert(root_irq_src);
 	root_irq_src->handle_irq(root_irq_src);
 
@@ -527,7 +533,7 @@ boolean_t kernel_trap_sync(
 	vm_map_t	map;
 	void		*recovery = NULL;
 
-#if 0
+#if 1
 	printf("Sync exc from EL1!\n");
 	printf("ESR: %#lx, FAR: %#lx, PC: %#lx\n", esr, far, akes->pc);
 #endif

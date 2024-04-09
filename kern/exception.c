@@ -93,6 +93,8 @@ exception(
 	ipc_thread_t self = current_thread();
 	ipc_port_t exc_port;
 
+	printf("!!! %p (%s) exception %d code %d subcode %lx\n", self, self->task->name, _exception, code, subcode);
+
 	if (_exception == KERN_SUCCESS)
 		panic("exception");
 

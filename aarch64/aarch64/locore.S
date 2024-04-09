@@ -466,6 +466,11 @@ LEXT(kernel_trap_fatal_helper)
 	b	EXT(kernel_trap_fatal)
 END(kernel_trap_fatal_helper)
 
+	.section .rodata
+.tbr_printf_format:
+	.asciz "thread_exception_return() to %p\n"
+	.text
+
 /*
  *	Called as a function, makes the current thread
  *	return from the kernel as if from a syscall.
@@ -490,6 +495,11 @@ ENTRY(thread_bootstrap_return)
 #ifdef __ARM_FEATURE_BTI_DEFAULT
 	bti	c
 #endif
+
+	GET_PCB_STACK(x1)
+	ldr	x1, [x1, #ATS_PC]
+	adr	x0, .tbr_printf_format
+	bl	EXT(printf)
 
 	/*
 	 *	We're about to write system registers (ELR_EL1 etc.),

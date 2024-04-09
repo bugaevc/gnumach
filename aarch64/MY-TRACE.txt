@@ -1,0 +1,472 @@
+$ qemu-system-aarch64 -m 1G -machine virt -cpu cortex-a53 -kernel build/gnumach -nographic -append "foo=bar" -device guest-loader,kernel=build/tests/module-hello,bootargs='module-hello ${host-port} ${device-port} $(task-create) $(task-resume)',addr=0x4000
+GNU Mach 1.8
+Kernel command line: foo=bar
+Booting in EL1
+vm_page: page table size: 262144 entries (20480k)
+vm_page: DMA: pages: 262144 (1024M), free: 221873 (866M)
+vm_page: DMA: min:13107 low:15728 high:26214
+Model name: linux dummy-virt
+module 0: module-hello ${host-port} ${device-port} $(task-create) $(task-resume)
+1 bootstrap modules
+Switch context from ffff00007f944cf0 (gnumach, cont 0) to ffff00007f944ac8 (gnumach, cont ffff0000402096c0)
+Switch context from ffff00007f944ac8 (gnumach, cont ffff00004020948c) to ffff00007f9448a0 (gnumach, cont ffff00004020d860)
+Switch context from ffff00007f9448a0 (gnumach, cont ffff00004020c304) to ffff00007f944678 (gnumach, cont ffff00004020e620)
+Switch context from ffff00007f944678 (gnumach, cont ffff00004020e484) to ffff00007f944450 (gnumach, cont ffff0000402098c8)
+Switch context from ffff00007f944450 (gnumach, cont ffff000040209888) to ffff00007f944228 (gnumach, cont ffff00004021efc0)
+Switch context from ffff00007f944228 (gnumach, cont 0) to ffff00007f944000 (gnumach, cont ffff00004021ee80)
+Switch context from ffff00007f944000 (gnumach, cont ffff00004021df80) to ffff00007f926cf8 (gnumach, cont ffff000040221180)
+IRQ in kernel!
+Stack handoff from ffff00007f926cf8 (gnumach) to ffff00007f926ad0 (module-hello)
+Sync exc from EL1!
+ESR: 0x96000044, FAR: 0x400000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x401000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x402000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x403000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x404000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x405000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x406000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x407000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x408000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x409000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x40a000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x40b000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x40c000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x40d000, PC: 0xffff0000402228e0
+IRQ in kernel!
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x40e000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x40f000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x410000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x411000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x412000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x413000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x414000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x415000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x416000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x417000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x418000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x419000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x41a000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x41b000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x41c000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x41d000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x41e000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x41f000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x420000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x421000, PC: 0xffff0000402228e0
+IRQ in kernel!
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x422000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x423000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x424000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x425000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x426000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x427000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x428000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x429000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x42a000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x42b000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x42c000, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000047, FAR: 0x43cc98, PC: 0xffff0000402228e0
+task loaded:Sync exc from EL1!
+ESR: 0x96000044, FAR: 0xffffffffffb0, PC: 0xffff0000402228e0
+Sync exc from EL1!
+ESR: 0x96000044, FAR: 0x1000000000000, PC: 0xffff0000402228e0
+ module-hello 1 2thread_exception_return() to 40205c
+ffff00007f926ad0 (module-hello) taking an AST
+IRQ in kernel!
+Switch context from ffff00007f926ad0 (module-hello, cont ffff000040222a90) to ffff00007f944cf0 (gnumach, cont 0)
+
+
+start module-hello: Switch context from ffff00007f944cf0 (gnumach, cont 0) to ffff00007f926ad0 (module-hello, cont ffff000040222a90)
+thread_exception_return() to 40205c
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x40205c
+upfc, kr = 0
+thread_exception_return() to 40205c
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x401d08
+upfc, kr = 0
+thread_exception_return() to 401d08
+Sync exc from EL0!
+ESR: 0x1fe00000, FAR: 0x401d08
+thread_exception_return() to 402718
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x401d08
+thread_exception_return() to 401e28
+IRQ from user
+thread_exception_return() to 401e28
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x415d5c
+upfc, kr = 0
+thread_exception_return() to 415d5c
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x410da0
+upfc, kr = 0
+thread_exception_return() to 410da0
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x410da0
+thread_exception_return() to 401e08
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x410da0
+IRQ in kernel!
+thread_exception_return() to 401df8
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x416000
+upfc, kr = 0
+thread_exception_return() to 416000
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x40024c
+upfc, kr = 0
+thread_exception_return() to 40024c
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+sthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+athread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+rthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+dthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+mthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+dthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+uthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+-thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+hthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync IRQ in kernel!
+exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+1thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+2thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+
+thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+hthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+!thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+!thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+
+thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+gthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+nthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+uthread_exception_return() to 401e48
+Sync exc from EL0!
+IRQ in kernel!
+ESR: 0x56000000, FAR: 0x40024c
+mthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+athread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+cthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+hthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+-thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+sthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+-thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+sthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+uthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+cthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+cthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+sthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+sthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+-thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+athread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+nthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+dthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+-thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+rthread_exceptiIRQ in kernel!
+on_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+bthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+:thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+sthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+mthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+dthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+uthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+-thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+hthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() tIRQ in kernel!
+o 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+lthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+xthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ithread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+tthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+cthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+othread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+dthread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ethread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+ thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+0thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x40024c
+
+thread_exception_return() to 401e48
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x42165c
+upfc, kr = 0
+thread_exception_return() to 42165c
+Sync exc from EL0!
+ESR: 0x8200000f, FAR: 0x41b408
+upfc, kr = 0
+thread_exception_return() to 41b408
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x41b408
+thread_exception_return() to 401e08
+Sync exc from EL0!
+ESR: 0x56000000, FAR: 0x41b408

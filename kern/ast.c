@@ -44,6 +44,7 @@
 #include <kern/sched_prim.h>
 #include <kern/thread.h>
 #include <kern/processor.h>
+#include <kern/printf.h>
 #include <device/net_io.h>
 
 #include <machine/spl.h>	/* for splsched */
@@ -71,6 +72,8 @@ ast_taken(void)
 {
 	thread_t self = current_thread();
 	ast_t reasons;
+
+	printf("%p (%s) taking an AST\n", self, self->task->name);
 
 	/*
 	 *	Interrupts are still disabled.

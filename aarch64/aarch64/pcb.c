@@ -7,6 +7,7 @@
 #include <vm/vm_map.h>
 #include <kern/slab.h>
 #include <kern/counters.h>
+#include <kern/printf.h>
 #include <string.h>
 
 /* Top of active stack (high address).  */
@@ -59,6 +60,8 @@ void stack_handoff(
 	int		mycpu = cpu_number();
 	vm_offset_t	stack;
 
+	printf("Stack handoff from %p (%s) to %p (%s)\n", old, old->task->name, new, new->task->name);
+
 	old_task = old->task;
 	new_task = new->task;
 	if (old_task != new_task) {
@@ -87,6 +90,8 @@ thread_t switch_context(
 {
 	task_t	old_task, new_task;
 	int	mycpu = cpu_number();
+
+	printf("Switch context from %p (%s, cont %p) to %p (%s, cont %p)\n", old, old->task->name, continuation, new, new->task->name, new->swap_func);
 
 	old_task = old->task;
 	new_task = new->task;
