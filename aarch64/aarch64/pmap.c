@@ -924,8 +924,8 @@ void pmap_enter(
 
 	PMAP_READ_UNLOCK(pmap, spl);
 
-	// TLB_FLUSH("vae1", (v >> PAGE_SHIFT) | TTBR_MAKE_ASID(pmap->asid));
-	// cache_flush();
+	TLB_FLUSH("vae1", (v >> PAGE_SHIFT) | TTBR_MAKE_ASID(pmap->asid));
+	cache_flush();
 }
 
 
