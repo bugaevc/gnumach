@@ -46,7 +46,7 @@ struct aarch64_kernel_exception_state {
 
 typedef struct pcb {
 	struct aarch64_float_state *afs;
-	struct aarch64_thread_state ats;
+	_Alignas(16) struct aarch64_thread_state ats;
 	long	esr;
 	long	far;
 } *pcb_t;
